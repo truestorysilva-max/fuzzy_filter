@@ -1,0 +1,85 @@
+cmake_minimum_required(VERSION 3.22)
+
+project(FuzzyFilter VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+option(FF_BUILD_PLUGIN "Build the plugin (downloads JUCE)" ON)
+
+enable_testing()
+
+# DSP tests: plain C++, no JUCE needed.
+add_executable(dsp_tests tests/dsp_tests.cpp)
+target_include_directories(dsp_tests PRIVATE Source)
+add_test(NAME dsp_tests COMMAND dsp_tests)
+
+if(FF_BUILD_PLUGIN)
+    include(FetchContent)
+    FetchContent_Declare(JUCE
+        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+        GIT_TAG 8.0.8
+        GIT_SHALLOW ON)
+    FetchContent_MakeAvailable(JUCE)
+
+    set(FF_FORMATS VST3)
+    if(APPLE)
+        list(APPEND FF_FORMATS AU)
+    endif()
+    # AAX (Pro Tools) is added in step 4, once the Avid SDK and signing are set up.
+
+    juce_add_plugin(FuzzyFilter
+        PRODUCT_NAME "Fuzzy Filter"
+        COMPANY_NAME "Fuzzy Filter"
+        BUNDLE_ID com.fuzzyfilter.fuzzyfilter
+        PLUGIN_MANUFACTURER_CODE Fzfl
+        PLUGIN_CODE Fzf1
+        FORMATS ${FF_FORMATS}
+        IS_SYNTH FALSE
+        NEEDS_MIDI_INPUT FALSE
+        NEEDS_MIDI_OUTPUT FALSE
+        IS_MIDI_EFFECT FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        VST3_CATEGORIES Fx Filter Distortion
+        AU_MAIN_TYPE kAudioUnitType_Effect
+        COPY_PLUGIN_AFTER_BUILD FALSE)
+
+    target_sources(FuzzyFilter PRIVATE
+        Source/PluginProcessor.cpp
+        Source/Parameters.cpp)
+
+    target_include_directories(FuzzyFilter PRIVATE Source)
+
+    target_compile_definitions(FuzzyFilter PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0)
+
+    target_link_libraries(FuzzyFilter
+        PRIVATE
+            juce::juce_audio_utils
+            juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags)
+
+    # Runs the real processor without a host (bus layouts, outputs, state).
+    juce_add_console_app(PluginSmokeTest PRODUCT_NAME "PluginSmokeTest")
+    target_sources(PluginSmokeTest PRIVATE
+        tests/plugin_smoke_test.cpp
+        Source/PluginProcessor.cpp
+        Source/Parameters.cpp)
+    target_include_directories(PluginSmokeTest PRIVATE Source)
+    target_compile_definitions(PluginSmokeTest PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JucePlugin_Name="Fuzzy Filter")
+    target_link_libraries(PluginSmokeTest
+        PRIVATE
+            juce::juce_audio_utils
+            juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags)
+    add_test(NAME plugin_smoke_test COMMAND PluginSmokeTest)
+endif()
