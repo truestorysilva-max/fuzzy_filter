@@ -3,6 +3,7 @@
 
 #include "dsp/FuzzFace.h"
 #include "dsp/InputStage.h"
+#include "dsp/Modulation.h"
 #include "dsp/QuadPeakFilter.h"
 
 #include <cstdio>
@@ -190,6 +191,84 @@ int main()
         check (on > off * 2.0, "Excite 100%: ringing after a click at least 3 dB stronger", toDb (std::sqrt (on / off)));
     }
 
+
+    // ---- LFO: right rate, stays within -1..1, stereo offset shifts the right side.
+    {
+        Lfo lfo;
+        lfo.prepare (kFs);
+        int upCrossings = 0;
+        float prev = 0.0f, lo = 0.0f, hi = 0.0f;
+        bool bounded = true;
+        for (int w = 0; w < Lfo::numWaves; ++w)
+        {
+            lfo.reset (0.0);
+            for (int i = 0; i < 48000; ++i)
+            {
+                float l, r;
+                lfo.tick (1500.0f, (Lfo::Wave) w, 0.0f, 0.25f, l, r); // audio rate
+                bounded = bounded && std::isfinite (l) && std::abs (l) <= 1.1f && std::abs (r) <= 1.1f;
+            }
+        }
+        check (bounded, "LFO: every wave stays within -1..1 at 1.5 kHz");
+
+        lfo.reset (0.0);
+        for (int i = 0; i < 48000 + 10; ++i) // one second, plus a few samples to catch the 5th rising zero
+        {
+            float l, r;
+            lfo.tick (5.0f, Lfo::sine, 0.0f, 0.0f, l, r);
+            if (prev < 0.0f && l >= 0.0f) ++upCrossings;
+            prev = l; lo = std::min (lo, l); hi = std::max (hi, l);
+        }
+        check (upCrossings == 5, "LFO: 5 Hz sine makes 5 cycles in one second", upCrossings);
+        check (lo < -0.99f && hi > 0.99f, "LFO: sine spans the full -1..1 range", hi);
+
+        lfo.reset (0.0);
+        float l, r;
+        lfo.tick (1.0f, Lfo::sine, 0.0f, 0.25f, l, r); // 90 degrees
+        check (std::abs (l) < 0.01f && r > 0.99f, "LFO: Stereo 90 degrees puts the right side a quarter cycle ahead", r);
+
+        lfo.reset (0.0);
+        double slowPhase = 0.0;
+        for (int i = 0; i < 48000; ++i) { lfo.tick (0.01f, Lfo::sawUp, 0.0f, 0.0f, l, r); }
+        slowPhase = lfo.getPhase();
+        check (std::abs (slowPhase - 0.01) < 1.0e-4, "LFO: 0.01 Hz moves 1% of a cycle per second", slowPhase);
+    }
+
+    // ---- ADSR: attack time, sustain level, release to silence.
+    {
+        Adsr env;
+        env.prepare (kFs);
+        env.gate (true);
+        int toPeak = 0;
+        while (env.tick (0.01f, 0.1f, 0.5f, 0.2f) < 1.0f && toPeak < 48000) ++toPeak;
+        check (std::abs (toPeak - 480) <= 2, "ADSR: 10 ms attack reaches the top in 480 samples", toPeak);
+        for (int i = 0; i < 24000; ++i) env.tick (0.01f, 0.1f, 0.5f, 0.2f);
+        check (std::abs (env.getValue() - 0.5f) < 0.01f, "ADSR: settles at Sustain 50%", env.getValue());
+        env.gate (false);
+        for (int i = 0; i < 9600; ++i) env.tick (0.01f, 0.1f, 0.5f, 0.2f); // 200 ms
+        check (env.getValue() < 0.01f, "ADSR: 200 ms release falls below 1%", env.getValue());
+        for (int i = 0; i < 48000; ++i) env.tick (0.01f, 0.1f, 0.5f, 0.2f);
+        check (env.getStage() == Adsr::idle, "ADSR: returns to idle after release");
+    }
+
+    // ---- Follower and gate: opens on a loud burst, closes after it, with hysteresis.
+    {
+        EnvelopeFollower follower;
+        follower.prepare (kFs);
+        FollowerGate gate;
+        int opens = 0;
+        bool openDuringBurst = false, closedAfter = false;
+        for (int i = 0; i < 48000; ++i)
+        {
+            const float x = (i >= 4800 && i < 9600) ? 0.5f * (float) std::sin (0.1 * i) : 0.0f; // -6 dBFS burst
+            const float level = follower.process (x);
+            if (gate.update (level, -20.0f)) ++opens;
+            if (i == 9000) openDuringBurst = gate.isOpen();
+        }
+        closedAfter = ! gate.isOpen();
+        check (opens == 1 && openDuringBurst && closedAfter, "follower gate: opens once on a burst and closes after", opens);
+    }
+
     // ---- Fuzz: bounded, gain rises with Fuzz, low Bias gates quiet signals.
     {
         auto rmsOut = [] (FuzzFace::Params fp, float amp, double hz = 220.0)
@@ -219,6 +298,8 @@ int main()
         check (high.first > low.first * 3.0, "fuzz: Fuzz 100% much louder than 0% on a quiet signal",
                toDb (high.first / low.first));
 
+        check (std::abs (FuzzFace::driveFor (1.0f) / 300.0f - 5.0f) < 0.01f, "fuzz: max drive is 5x the old 300x", FuzzFace::driveFor (1.0f));
+        check (FuzzFace::driveFor (0.5f) / (2.0f * std::sqrt (150.0f)) < 1.3f, "fuzz: mid knob drive barely changes", FuzzFace::driveFor (0.5f));
         fp.fuzz = 0.2f; fp.bias = 0.5f; const auto normal = rmsOut (fp, 0.005f);
         fp.bias = 0.0f; const auto gated = rmsOut (fp, 0.005f);
         check (gated.first < normal.first * 0.25, "fuzz: Bias 0% gates a quiet signal", toDb (gated.first / normal.first));

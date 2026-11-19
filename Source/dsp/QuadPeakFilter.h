@@ -60,58 +60,30 @@ public:
         exciteEnv1 = exciteEnv2 = 0.0f;
     }
 
-    // Processes one stereo sample.
+    // Processes one stereo sample with the same settings on both sides.
     // ex1L/ex1R and ex2L/ex2R are the audio that drives Excite 1 and Excite 2
-    // (the input audio or the sidechain, chosen by the plugin).
+    // (the input audio, the sidechain or the mod grid, chosen by the plugin).
     void process (float inL, float inR,
                   float ex1L, float ex1R, float ex2L, float ex2R,
                   const Params& p, Outputs& outL, Outputs& outR)
     {
-        const float maxF = 0.45f * (float) fs;
-        const float f = clampf (p.frequency, kMinFrequency, maxF);
+        process (inL, inR, ex1L, ex1R, ex2L, ex2R, p, p, outL, outR);
+    }
 
-        // Q mapping: 0 = flat (Butterworth), +1 = near self-oscillation,
-        // negative = peaks are cut instead of boosted.
-        const float q = clampf (p.q, -1.0f, 1.0f);
-        // Below zero the damping goes up instead, which rounds the peaks off
-        // and pulls the response down around the cutoff.
-        const float k = q >= 0.0f ? kButterworth * std::pow (1.0f - q, 1.6f) + 0.01f
-                                  : kButterworth * (1.0f - 3.0f * q);
-        const float inputScale = std::min (1.0f, std::pow (k / kButterworth, 0.25f));
-        const float bpScale = std::sqrt (k * kButterworth);
-
-        // Comb feedback follows Q. Negative feedback gives the hollow,
-        // odd-harmonics-only sound.
-        const float fb = q >= 0.0f ? 0.97f * std::pow (q, 0.8f) : -0.97f * std::pow (-q, 0.8f);
-        const float dampHz = 200.0f + 19800.0f * (1.0f - p.combDamping) * (1.0f - p.combDamping);
-        const float dampCoef = std::exp (-2.0f * kPi * std::min (dampHz, maxF) / (float) fs);
-
+    // Processes one stereo sample with separate settings per side, so stereo
+    // modulation (an LFO with Stereo offset) can move each side differently.
+    // The left side uses pL.spaceL, the right side pR.spaceR.
+    void process (float inL, float inR,
+                  float ex1L, float ex1R, float ex2L, float ex2R,
+                  const Params& pL, const Params& pR, Outputs& outL, Outputs& outR)
+    {
         // Excite envelopes: fast attack, 50 ms release. A transient briefly
         // raises the resonance of the excited cores.
         exciteEnv1 = std::max (0.5f * (std::abs (ex1L) + std::abs (ex1R)), exciteEnv1 * exciteRelease);
         exciteEnv2 = std::max (0.5f * (std::abs (ex2L) + std::abs (ex2R)), exciteEnv2 * exciteRelease);
-        const float k1 = std::max (0.005f, k * (1.0f - 0.85f * p.excite1 * std::min (exciteEnv1, 1.0f)));
-        const float k2 = std::max (0.005f, k * (1.0f - 0.85f * p.excite2 * std::min (exciteEnv2, 1.0f)));
 
-        // Notch Pass blend: high pass at the bottom of the range, a notch in
-        // the middle, low pass at the top, so the level stays fairly even.
-        const float w = clampf (std::log2 (f / 20.0f) / 10.0f, 0.0f, 1.0f);
-
-        const float fA = clampf (f * std::exp2 ( kSpaceUpOctaves   * p.spaceL), kMinFrequency, maxF);
-        const float fB = clampf (f * std::exp2 (-kSpaceDownOctaves * p.spaceL), kMinFrequency, maxF);
-        const float fC = clampf (f * std::exp2 ( kSpaceUpOctaves   * p.spaceR), kMinFrequency, maxF);
-        const float fD = clampf (f * std::exp2 (-kSpaceDownOctaves * p.spaceR), kMinFrequency, maxF);
-
-        const Ctx base { inputScale, bpScale, fb, dampCoef, w };
-
-        Outputs a, b, c, d;
-        cores[0].tick (inL, ex1L * p.excite1, fA, k1, base, fs, a);
-        cores[1].tick (inL, ex2L * p.excite2, fB, k2, base, fs, b);
-        cores[2].tick (inR, ex1R * p.excite1, fC, k1, base, fs, c);
-        cores[3].tick (inR, ex2R * p.excite2, fD, k2, base, fs, d);
-
-        sumSide (a, b, outL);
-        sumSide (c, d, outR);
+        processSide (0, inL, ex1L, ex2L, pL, pL.spaceL, outL);
+        processSide (2, inR, ex1R, ex2R, pR, pR.spaceR, outR);
     }
 
     static constexpr float kMinFrequency = 20.0f;
@@ -202,6 +174,48 @@ private:
         out.hp   = softClip (0.5f * (a.hp + b.hp), ceiling);
         out.np   = softClip (0.5f * (a.np + b.np), ceiling);
         out.comb = softClip (0.5f * (a.comb + b.comb), ceiling);
+    }
+
+    void processSide (int firstCore, float in, float ex1, float ex2, const Params& p, float space, Outputs& out)
+    {
+        const float maxF = 0.45f * (float) fs;
+        const float f = clampf (p.frequency, kMinFrequency, maxF);
+
+        // Q mapping: 0 = flat (Butterworth), +1 = near self-oscillation.
+        // Below zero the damping goes up instead, which rounds the peaks off
+        // and pulls the response down around the cutoff.
+        const float q = clampf (p.q, -1.0f, 1.0f);
+        const float k = q >= 0.0f ? kButterworth * std::pow (1.0f - q, 1.6f) + 0.01f
+                                  : kButterworth * (1.0f - 3.0f * q);
+        const float inputScale = std::min (1.0f, std::pow (k / kButterworth, 0.25f));
+        const float bpScale = std::sqrt (k * kButterworth);
+
+        // Comb feedback follows Q. Negative feedback gives the hollow,
+        // odd-harmonics-only sound.
+        const float fb = q >= 0.0f ? 0.97f * std::pow (q, 0.8f) : -0.97f * std::pow (-q, 0.8f);
+        const float damping = clampf (p.combDamping, 0.0f, 1.0f);
+        const float dampHz = 200.0f + 19800.0f * (1.0f - damping) * (1.0f - damping);
+        const float dampCoef = std::exp (-2.0f * kPi * std::min (dampHz, maxF) / (float) fs);
+
+        const float excite1 = clampf (p.excite1, 0.0f, 1.0f);
+        const float excite2 = clampf (p.excite2, 0.0f, 1.0f);
+        const float k1 = std::max (0.005f, k * (1.0f - 0.85f * excite1 * std::min (exciteEnv1, 1.0f)));
+        const float k2 = std::max (0.005f, k * (1.0f - 0.85f * excite2 * std::min (exciteEnv2, 1.0f)));
+
+        // Notch Pass blend: high pass at the bottom of the range, a notch in
+        // the middle, low pass at the top, so the level stays fairly even.
+        const float w = clampf (std::log2 (f / 20.0f) / 10.0f, 0.0f, 1.0f);
+
+        const float s = clampf (space, 0.0f, 1.0f);
+        const float fUp   = clampf (f * std::exp2 ( kSpaceUpOctaves   * s), kMinFrequency, maxF);
+        const float fDown = clampf (f * std::exp2 (-kSpaceDownOctaves * s), kMinFrequency, maxF);
+
+        const Ctx ctx { inputScale, bpScale, fb, dampCoef, w };
+
+        Outputs a, b;
+        cores[firstCore].tick     (in, ex1 * excite1, fUp,   k1, ctx, fs, a);
+        cores[firstCore + 1].tick (in, ex2 * excite2, fDown, k2, ctx, fs, b);
+        sumSide (a, b, out);
     }
 
     double fs = 44100.0;

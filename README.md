@@ -1,7 +1,7 @@
 # Fuzzy Filter
 
 A stereo audio effect plugin: a Fuzz Face style fuzz and a QPAS-inspired
-four-peak resonant filter, with a MicroFreak-style mod grid (coming in step 3).
+four-peak resonant filter, with a MicroFreak-style mod grid.
 Built with [JUCE](https://juce.com) 8 as VST3 (Windows and Mac) and AU (Mac).
 AAX for Pro Tools comes in step 4.
 
@@ -57,8 +57,28 @@ affect the main output), and are taken straight from the filter, so the fuzz
 reaches them only when it is set to pre filter. Whether a host shows extra
 outputs on an audio effect varies, so check this in Ableton and Pro Tools.
 
-**Sidechain.** A stereo sidechain input can drive Excite 1 and 2. The envelope
-followers that listen to it arrive with the modulation in step 3.
+**Sidechain.** A stereo sidechain input can drive Excite 1 and 2, and either
+envelope follower can listen to it.
+
+## Modulation
+
+| Section | What it does |
+|---|---|
+| 4 LFOs | Sine, triangle, saw up, saw down, square, sample and hold, smooth random. 0.01 Hz to 2 kHz, or synced to the host tempo (1/64 to 8 bars). Phase, stereo offset (0 to 180 degrees) and retrigger from Env 1 or Env 2. |
+| 2 envelope followers | Listen to the input before or after the input gain, or to the sidechain. Threshold and sensitivity set when they fire. |
+| 2 ADSR envelopes | Each one is gated by its own follower. Attack 0.1 ms to 10 s, decay to 10 s, release to 20 s. |
+| Mod grid | 8 sources (4 LFOs, 2 envelopes, 2 followers) by 14 destinations, each crossing -100% to +100%. |
+
+Fixed destinations: Input Gain, Frequency, Q, Space L, Space R, Excite 1,
+Excite 2, Fuzz, Fuzz Bias, Fuzz Volume and Fuzz Mix. The three Assign columns
+can each point at an LFO rate, any envelope time, sustain or threshold, Comb
+Damping, Filter Mix or one of the five output levels.
+
+Modulation is computed per sample and per channel, so a stereo LFO moves the
+left and right filters apart. Like the QPAS, Space R follows Space L's
+modulation until something is routed to Space R itself. Setting an Excite
+source to "Mod grid only" makes the grid signal the excite signal, with the
+Excite knob as its amount.
 
 ## Layout
 
@@ -66,10 +86,12 @@ followers that listen to it arrive with the modulation in step 3.
 Source/
   PluginProcessor.*   buses, parameters, signal routing
   Parameters.*        every parameter, its range and default
+  ModDefs.h           mod sources, destinations and assignable targets
   dsp/                the sound engine (plain C++, no JUCE)
     InputStage.h
     FuzzFace.h
     QuadPeakFilter.h  four cores, LP/BP/HP/Notch Pass/Comb
+    Modulation.h      LFOs, envelope followers, ADSRs
 tests/
   dsp_tests.cpp           offline checks of the DSP
   plugin_smoke_test.cpp   runs the whole plugin without a host
