@@ -161,7 +161,7 @@ void PresetBar::showMenu()
     for (juce::PopupMenu::MenuItemIterator it (user); it.next();)
         menu.addItem (it.getItem());
     menu.addSeparator();
-    constexpr int saveId = 10000, deleteId = 10001, folderId = 10002;
+    static constexpr int saveId = 10000, deleteId = 10001, folderId = 10002;
     menu.addItem (saveId, "Save as...");
     const bool canDelete = current >= 0 && ! presets.getEntry (current).factory;
     menu.addItem (deleteId, "Delete \"" + presets.getCurrentName() + "\"", canDelete);
