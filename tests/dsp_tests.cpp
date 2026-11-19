@@ -298,6 +298,8 @@ int main()
         check (high.first > low.first * 3.0, "fuzz: Fuzz 100% much louder than 0% on a quiet signal",
                toDb (high.first / low.first));
 
+        check (std::abs (FuzzFace::driveFor (1.0f) / 300.0f - 5.0f) < 0.01f, "fuzz: max drive is 5x the old 300x", FuzzFace::driveFor (1.0f));
+        check (FuzzFace::driveFor (0.5f) / (2.0f * std::sqrt (150.0f)) < 1.3f, "fuzz: mid knob drive barely changes", FuzzFace::driveFor (0.5f));
         fp.fuzz = 0.2f; fp.bias = 0.5f; const auto normal = rmsOut (fp, 0.005f);
         fp.bias = 0.0f; const auto gated = rmsOut (fp, 0.005f);
         check (gated.first < normal.first * 0.25, "fuzz: Bias 0% gates a quiet signal", toDb (gated.first / normal.first));

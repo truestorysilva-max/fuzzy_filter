@@ -42,6 +42,15 @@ public:
         toneLowPass.reset();
     }
 
+    // Gain into the transistors. The base curve runs 2x to 300x; the extra
+    // (1 + 4 fuzz^4) term leaves the lower half of the knob almost unchanged
+    // and makes the top end 5x hotter (1500x at 100%).
+    static float driveFor (float fuzz)
+    {
+        const float f2 = fuzz * fuzz;
+        return 2.0f * std::pow (150.0f, fuzz) * (1.0f + 4.0f * f2 * f2);
+    }
+
     void setParams (const Params& p)
     {
         params = p;
@@ -51,8 +60,7 @@ public:
 
     float process (float x)
     {
-        const float drive = 2.0f * std::pow (150.0f, params.fuzz); // 2x .. 300x
-        float v = inputHighPass.process (x) * drive;
+        float v = inputHighPass.process (x) * driveFor (params.fuzz);
 
         // Low Bias starves the transistors: small signals fall into a dead
         // zone, which gives the gated, sputtery sound.
