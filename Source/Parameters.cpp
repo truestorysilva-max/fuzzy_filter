@@ -80,7 +80,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
     // Filter
     layout.add (floatParam (ParamIDs::frequency, "Frequency", { 20.0f, 20000.0f, 0.01f, 0.25f }, 1000.0f, "Hz"));
-    layout.add (percentParam (ParamIDs::q, "Q", 0.3f, -1.0f));
+    layout.add (percentParam (ParamIDs::q, "Rez", 0.3f, -1.0f));
     layout.add (percentParam (ParamIDs::spaceL, "Space L", 0.0f));
     layout.add (percentParam (ParamIDs::spaceR, "Space R", 0.0f));
     layout.add (percentParam (ParamIDs::excite1, "Excite 1", 0.0f));

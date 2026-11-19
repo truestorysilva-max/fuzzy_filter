@@ -45,7 +45,7 @@ inline constexpr std::array<const char*, numSlots> slotParamIds {
 };
 
 inline constexpr std::array<const char*, numSlots> slotNames {
-    "Input Level", "Frequency", "Q", "Space L", "Space R", "Excite 1", "Excite 2", "Fuzz", "Bias", "Volume", "Fuzz Mix",
+    "Input Level", "Frequency", "Rez", "Space L", "Space R", "Excite 1", "Excite 2", "Fuzz", "Bias", "Volume", "Fuzz Mix",
     "LFO 1 Rate", "LFO 2 Rate", "LFO 3 Rate", "LFO 4 Rate",
     "Env 1 Attack", "Env 1 Decay", "Env 1 Sustain", "Env 1 Release",
     "Env 2 Attack", "Env 2 Decay", "Env 2 Sustain", "Env 2 Release",

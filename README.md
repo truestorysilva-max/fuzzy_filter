@@ -41,7 +41,7 @@ CMake downloads JUCE the first time (about 150 MB).
 | --- | --- |
 | Input | Input Gain, -24 to +24 dB, saturation fades in above 0 dB |
 | Fuzz | Fuzz, Volume, Bias, Character (Germanium or Silicon), Mix, Fuzz On, Fuzz Position (pre or post filter). Runs at 4x oversampling |
-| Filter | Frequency, Q (-100% to +100%; below 0 rounds the peaks off), Space L, Space R, Excite 1 and 2 with a source each (input audio, sidechain, or mod grid only), Comb Damping |
+| Filter | Frequency, Rez (resonance, -100% to +100%; below 0 rounds the peaks off), Space L, Space R, Excite 1 and 2 with a source each (input audio, sidechain, or mod grid only), Comb Damping |
 | Output | Levels for Low Pass, Band Pass, High Pass, Notch Pass and Comb; Filter Mix; Output Mode (Mixed or Separate) |
 
 **Filter cores.** Four 12 dB/octave state variable filters: two on the left,
@@ -69,7 +69,7 @@ envelope follower can listen to it.
 | 2 ADSR envelopes | Each one is gated by its own follower. Attack 0.1 ms to 10 s, decay to 10 s, release to 20 s. |
 | Mod grid | 8 sources (4 LFOs, 2 envelopes, 2 followers) by 14 destinations, each crossing -100% to +100%. |
 
-Fixed destinations: Input Gain, Frequency, Q, Space L, Space R, Excite 1,
+Fixed destinations: Input Gain, Frequency, Rez, Space L, Space R, Excite 1,
 Excite 2, Fuzz, Fuzz Bias, Fuzz Volume and Fuzz Mix. The three Assign columns
 can each point at an LFO rate, any envelope time, sustain or threshold, Comb
 Damping, Filter Mix or one of the five output levels.
