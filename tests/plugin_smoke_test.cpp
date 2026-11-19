@@ -16,7 +16,7 @@ void check (bool ok, const char* what, double value = 0.0)
     if (! ok) ++failures;
 }
 
-void setParam (FuzzyFilterProcessor& p, const char* id, float plainValue)
+void setParam (FuzzyFilterProcessor& p, const juce::String& id, float plainValue)
 {
     auto* param = p.apvts.getParameter (id);
     param->setValueNotifyingHost (param->convertTo0to1 (plainValue));
@@ -161,6 +161,74 @@ int main()
         const float f = b.apvts.getRawParameterValue (ParamIDs::frequency)->load();
         const float c = b.apvts.getRawParameterValue (ParamIDs::fuzzCharacter)->load();
         check (std::abs (f - 333.0f) < 1.0f && (int) c == Choices::silicon, "state: save and load round trip", f);
+    }
+
+
+    // Modulation: LFO 1 on Frequency changes the sound.
+    {
+        FuzzyFilterProcessor plain, modded;
+        for (auto* p : { &plain, &modded })
+        {
+            setParam (*p, ParamIDs::fuzzOn, 0.0f);
+            setParam (*p, ParamIDs::q, 0.7f);
+        }
+        setParam (modded, ModParamIds::lfo (1, "Rate"), 3.0f);
+        setParam (modded, ModParamIds::amount (Mod::lfo1, Mod::frequency), 0.5f);
+        plain.prepareToPlay (48000.0, 512);
+        modded.prepareToPlay (48000.0, 512);
+        bool f1 = false, f2 = false;
+        const auto a = run (plain, 100, f1);
+        const auto b = run (modded, 100, f2);
+        check (f1 && f2, "mod: output stays finite with LFO 1 on Frequency");
+        check (std::abs (a[0] - b[0]) > 0.002, "mod: LFO 1 on Frequency changes the output level", b[0] - a[0]);
+    }
+
+    // Envelope follower on the sidechain: the clicks open Env 1.
+    {
+        FuzzyFilterProcessor p;
+        setParam (p, ModParamIds::env (1, "Source"), (float) Choices::followerSidechain);
+        setParam (p, ModParamIds::env (1, "Threshold"), -20.0f);
+        setParam (p, ModParamIds::env (1, "Attack"), 0.001f);
+        setParam (p, ModParamIds::env (1, "Decay"), 1.0f);
+        setParam (p, ModParamIds::env (1, "Sustain"), 0.0f);
+        p.prepareToPlay (48000.0, 512);
+        bool finite = false;
+        float peak = 0.0f;
+        for (int b = 0; b < 30; ++b)
+        {
+            run (p, 1, finite);
+            peak = std::max (peak, p.getSourceValue (Mod::env1));
+        }
+        check (peak > 0.3f, "mod: sidechain clicks trigger Env 1", peak);
+    }
+
+    // Stress: every grid crossing at +100%, audio-rate LFOs, assigns on LFO rates.
+    {
+        FuzzyFilterProcessor p;
+        for (int src = 0; src < Mod::numSources; ++src)
+            for (int dst = 0; dst < Mod::numDestinations; ++dst)
+                setParam (p, ModParamIds::amount (src, dst), 1.0f);
+        for (int l = 1; l <= 4; ++l)
+        {
+            setParam (p, ModParamIds::lfo (l, "Rate"), 1500.0f);
+            setParam (p, ModParamIds::lfo (l, "Wave"), (float) (l + 1));
+            setParam (p, ModParamIds::lfo (l, "Stereo"), 90.0f);
+        }
+        setParam (p, Mod::assignTargetIds[0], 1.0f); // LFO 1 Rate
+        setParam (p, Mod::assignTargetIds[1], 5.0f); // Env 1 Attack
+        setParam (p, Mod::assignTargetIds[2], 21.0f); // Comb Level (last choice)
+        setParam (p, ParamIDs::excite1Source, (float) Choices::gridOnly);
+        p.prepareToPlay (48000.0, 512);
+        bool finite = false;
+        const auto rms = run (p, 200, finite);
+        check (finite && rms[0] < 2.5, "mod stress: every crossing at 100% stays finite and bounded", rms[0]);
+    }
+
+    // Parameter count: 25 sound + 28 LFO + 14 envelope + 3 assign + 112 grid.
+    {
+        FuzzyFilterProcessor p;
+        const int count = p.getParameters().size();
+        check (count == 25 + 28 + 14 + 3 + 112, "parameter count", count);
     }
 
     std::printf ("\n%s: %d failed\n", failures == 0 ? "ALL PASSED" : "FAILURES", failures);
