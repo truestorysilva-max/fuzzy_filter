@@ -44,9 +44,24 @@ if(FF_BUILD_PLUGIN)
         AU_MAIN_TYPE kAudioUnitType_Effect
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
-    target_sources(FuzzyFilter PRIVATE
+    # Fonts for the UI (both SIL Open Font License, see Resources/fonts).
+    juce_add_binary_data(FuzzyFilterAssets SOURCES
+        Resources/fonts/LondrinaSolid-Regular.ttf
+        Resources/fonts/LondrinaSolid-Black.ttf
+        Resources/fonts/ArchivoNarrow-Medium.ttf
+        Resources/fonts/ArchivoNarrow-Bold.ttf)
+
+    set(FF_SOURCES
         Source/PluginProcessor.cpp
-        Source/Parameters.cpp)
+        Source/Parameters.cpp
+        Source/PresetManager.cpp
+        Source/ui/Style.cpp
+        Source/ui/Widgets.cpp
+        Source/ui/Displays.cpp
+        Source/ui/ModGrid.cpp
+        Source/ui/PluginEditor.cpp)
+
+    target_sources(FuzzyFilter PRIVATE ${FF_SOURCES})
 
     target_include_directories(FuzzyFilter PRIVATE Source)
 
@@ -57,6 +72,7 @@ if(FF_BUILD_PLUGIN)
 
     target_link_libraries(FuzzyFilter
         PRIVATE
+            FuzzyFilterAssets
             juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC
@@ -64,12 +80,10 @@ if(FF_BUILD_PLUGIN)
             juce::juce_recommended_lto_flags
             juce::juce_recommended_warning_flags)
 
-    # Runs the real processor without a host (bus layouts, outputs, state).
+    # Runs the real processor and editor without a host (bus layouts,
+    # outputs, state, presets, UI).
     juce_add_console_app(PluginSmokeTest PRODUCT_NAME "PluginSmokeTest")
-    target_sources(PluginSmokeTest PRIVATE
-        tests/plugin_smoke_test.cpp
-        Source/PluginProcessor.cpp
-        Source/Parameters.cpp)
+    target_sources(PluginSmokeTest PRIVATE tests/plugin_smoke_test.cpp ${FF_SOURCES})
     target_include_directories(PluginSmokeTest PRIVATE Source)
     target_compile_definitions(PluginSmokeTest PRIVATE
         JUCE_WEB_BROWSER=0
@@ -77,6 +91,7 @@ if(FF_BUILD_PLUGIN)
         JucePlugin_Name="Fuzzy Filter")
     target_link_libraries(PluginSmokeTest
         PRIVATE
+            FuzzyFilterAssets
             juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC

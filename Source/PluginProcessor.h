@@ -5,6 +5,7 @@
 
 #include "ModDefs.h"
 #include "Parameters.h"
+#include "PresetManager.h"
 #include "dsp/FuzzFace.h"
 #include "dsp/InputStage.h"
 #include "dsp/Modulation.h"
@@ -48,6 +49,15 @@ public:
 
     // Latest value of each mod source (left channel), for tests and the UI.
     float getSourceValue (int source) const { return sourceValues[(size_t) source].load(); }
+
+    // For the UI: a slot's live normalised value (left channel) at the end of
+    // the last block, or -1 when nothing modulates it.
+    float getSlotLive (int slot) const { return slotLive[(size_t) slot].load(); }
+    // Peak input level since the last call, per channel (after the input gain).
+    float takeInputPeak (int ch) { return inputPeak[ch & 1].exchange (0.0f); }
+    double getLfoPhase (int lfo) const { return lfoPhase[lfo & 3].load(); }
+
+    PresetManager presets { apvts };
 
 private:
     static BusesProperties makeBuses();
@@ -119,6 +129,9 @@ private:
     ff::Adsr envelopes[2];
     float prevSourceL[Mod::numSources] {}, prevSourceR[Mod::numSources] {};
     std::array<std::atomic<float>, Mod::numSources> sourceValues {};
+    std::array<std::atomic<float>, Mod::numSlots> slotLive {};
+    std::atomic<float> inputPeak[2] {};
+    std::atomic<double> lfoPhase[4] {};
 
     double preparedSampleRate = 44100.0;
 

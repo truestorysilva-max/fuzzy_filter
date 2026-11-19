@@ -79,7 +79,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (percentParam (ParamIDs::fuzzMix, "Fuzz Mix", 1.0f));
 
     // Filter
-    layout.add (floatParam (ParamIDs::frequency, "Frequency", { 20.0f, 20000.0f, 0.01f, 0.25f }, 1000.0f, "Hz"));
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { ParamIDs::frequency, 1 }, "Frequency", NormalisableRange<float> { 20.0f, 20000.0f, 0.01f, 0.25f }, 1000.0f,
+        AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int)
+            { return v >= 1000.0f ? String (v / 1000.0f, v >= 10000.0f ? 1 : 2) + " kHz" : String (roundToInt (v)) + " Hz"; })));
     layout.add (percentParam (ParamIDs::q, "Rez", 0.3f, -1.0f));
     layout.add (percentParam (ParamIDs::spaceL, "Space L", 0.0f));
     layout.add (percentParam (ParamIDs::spaceR, "Space R", 0.0f));

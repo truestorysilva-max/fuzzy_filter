@@ -2,6 +2,7 @@
 // separate outputs, sidechain, bypass and saving/loading state.
 
 #include "PluginProcessor.h"
+#include "ui/PluginEditor.h"
 
 #include <cstdio>
 #include <random>
@@ -229,6 +230,67 @@ int main()
         FuzzyFilterProcessor p;
         const int count = p.getParameters().size();
         check (count == 25 + 28 + 14 + 3 + 112, "parameter count", count);
+    }
+
+    // Factory presets: each one loads, names itself, and plays finite audio.
+    {
+        FuzzyFilterProcessor p;
+        p.prepareToPlay (48000.0, 512);
+        auto& pm = p.presets;
+        bool allOk = true;
+        for (int i = 0; i < PresetManager::getNumFactoryPresets(); ++i)
+        {
+            pm.load (i);
+            bool finite = false;
+            const auto rms = run (p, 40, finite);
+            const bool ok = finite && rms[0] < 4.0 && pm.getCurrentName() == PresetManager::getFactoryName (i);
+            if (! ok) std::printf ("  preset %s: finite %d rms %.3f\n", PresetManager::getFactoryName (i).toRawUTF8(), (int) finite, rms[0]);
+            allOk = allOk && ok;
+        }
+        check (allOk, "presets: every factory preset loads and plays finite audio", PresetManager::getNumFactoryPresets());
+
+        pm.load (0);
+        const float rezInit = p.apvts.getRawParameterValue (ParamIDs::q)->load();
+        pm.step (1);
+        check (pm.getCurrentIndex() == 1, "presets: next steps to the second preset", pm.getCurrentIndex());
+        pm.step (-1);
+        pm.step (-1);
+        check (pm.getCurrentIndex() == pm.getNumEntries() - 1, "presets: previous wraps to the last", pm.getCurrentIndex());
+        pm.load (0);
+        check (std::abs (p.apvts.getRawParameterValue (ParamIDs::q)->load() - rezInit) < 1.0e-6f, "presets: Init restores defaults");
+        check (p.apvts.getParameter (ParamIDs::q)->getName (16) == "Rez", "Q is shown as Rez");
+    }
+
+    // The editor opens, survives a few timer ticks with modulation running,
+    // and can be drawn. FF_SNAPSHOT=<file.png> saves a picture of it.
+    {
+        FuzzyFilterProcessor p;
+        p.prepareToPlay (48000.0, 512);
+        p.presets.load (1); // Sputter Peaks: has modulation
+        bool finite = false;
+        run (p, 20, finite);
+        std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
+        const bool sized = editor->getWidth() == FuzzyFilterEditor::designWidth && editor->getHeight() == FuzzyFilterEditor::designHeight;
+        check (sized, "editor: opens at 1000 x 650", editor->getWidth());
+        for (int i = 0; i < 5; ++i)
+        {
+            run (p, 4, finite);
+            juce::Thread::sleep (40);
+            juce::Timer::callPendingTimersSynchronously();
+        }
+        const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 2.0f);
+        check (image.isValid() && image.getWidth() == 2000, "editor: draws", image.getWidth());
+
+        editor->setSize (800, 520);
+        check (editor->getWidth() == 800, "editor: resizes", editor->getWidth());
+
+        if (auto path = juce::SystemStats::getEnvironmentVariable ("FF_SNAPSHOT", {}); path.isNotEmpty())
+        {
+            juce::File file (path);
+            file.deleteFile();
+            juce::FileOutputStream out (file);
+            juce::PNGImageFormat().writeImageToStream (image, out);
+        }
     }
 
     std::printf ("\n%s: %d failed\n", failures == 0 ? "ALL PASSED" : "FAILURES", failures);

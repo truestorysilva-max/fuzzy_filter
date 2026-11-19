@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "ui/PluginEditor.h"
 
 namespace
 {
@@ -72,6 +73,7 @@ FuzzyFilterProcessor::FuzzyFilterProcessor()
     {
         slots[(size_t) s].param = apvts.getParameter (Mod::slotParamIds[(size_t) s]);
         jassert (slots[(size_t) s].param != nullptr);
+        slotLive[(size_t) s].store (-1.0f);
     }
 
     routings.reserve ((size_t) (Mod::numSources * Mod::numDestinations));
@@ -302,6 +304,10 @@ void FuzzyFilterProcessor::runModulation (int n)
 
     for (int s = 0; s < Mod::numSources; ++s)
         sourceValues[(size_t) s].store (prevSourceL[s]);
+    for (int s = 0; s < Mod::numSlots; ++s)
+        slotLive[(size_t) s].store (slots[(size_t) s].dynamic ? juce::jlimit (0.0f, 1.0f, modValues.getSample (s * 2, n - 1)) : -1.0f);
+    for (int l = 0; l < 4; ++l)
+        lfoPhase[l].store (lfos[l].getPhase());
 }
 
 void FuzzyFilterProcessor::runInputStage (int n)
@@ -314,6 +320,9 @@ void FuzzyFilterProcessor::runInputStage (int n)
             const float db = slotValue (Mod::inputGain, ch, i);
             d[i] = ff::InputStage::process (d[i], juce::Decibels::decibelsToGain (db), ff::InputStage::saturationAmount (db));
         }
+        const float peak = work.getMagnitude (ch, 0, n);
+        if (peak > inputPeak[ch].load())
+            inputPeak[ch].store (peak);
     }
 }
 
@@ -521,10 +530,7 @@ void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
 juce::AudioProcessorEditor* FuzzyFilterProcessor::createEditor()
 {
-    // Plain knobs for now; the designed UI comes in step 4.
-    auto* editor = new juce::GenericAudioProcessorEditor (*this);
-    editor->setSize (560, 760);
-    return editor;
+    return new FuzzyFilterEditor (*this);
 }
 
 void FuzzyFilterProcessor::getStateInformation (juce::MemoryBlock& destData)
