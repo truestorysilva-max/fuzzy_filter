@@ -80,6 +80,17 @@ modulation until something is routed to Space R itself. Setting an Excite
 source to "Mod grid only" makes the grid signal the excite signal, with the
 Excite knob as its amount.
 
+## UI and presets
+
+The window follows the Cut Paper design. Drag a knob up or down to turn it, and double-click it to reset it. A red arc around a knob shows how far the mod grid moves it, and a dot shows where it is right now. In the mod grid, click a crossing and drag to set its amount, and double-click to clear it. Click A1, A2 or A3 at the top of a column to choose what that Assign column controls. Drag the bottom-right corner to resize the window.
+
+The arrows step through presets. Click the preset name to see the full list, save your own, or delete one. User presets are `.ffpreset` files in:
+
+- Windows: `%APPDATA%\Fuzzy Filter\Presets`
+- Mac: `~/Library/Fuzzy Filter/Presets`
+
+They are plain XML files, so you can copy them between computers.
+
 ## Layout
 
 ```
@@ -87,6 +98,8 @@ Source/
   PluginProcessor.*   buses, parameters, signal routing
   Parameters.*        every parameter, its range and default
   ModDefs.h           mod sources, destinations and assignable targets
+  PresetManager.*     factory and user presets
+  ui/                 the editor: style, widgets, displays, mod grid
   dsp/                the sound engine (plain C++, no JUCE)
     InputStage.h
     FuzzFace.h
@@ -98,6 +111,8 @@ tests/
 ```
 
 ## License note
+
+The UI fonts are Londrina Solid and Archivo Narrow. Both are under the SIL Open Font License, and their license texts are in `Resources/fonts`.
 
 JUCE is free for personal use and for small businesses under its starter
 license, or under the AGPLv3. Check the [JUCE licence terms](https://juce.com/get-juce/)
