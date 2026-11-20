@@ -99,15 +99,19 @@ jobs:
               codesign --verify --strict --verbose=2 "$b"
             done
 
-            mkdir -p notarize
-            for b in "${bundles[@]}"; do ditto -c -k --keepParent "$b" "notarize/$(basename "$b").zip"; done
-            for z in notarize/*.zip; do
-              xcrun notarytool submit "$z" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
-                --team-id "$APPLE_TEAM_ID" --wait --timeout 30m --output-format json | tee notarize/result.json
-              grep -q '"status" *: *"Accepted"' notarize/result.json || { echo "Notarization failed for $z"; \
-                id=$(sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p' notarize/result.json | head -1); \
-                xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" || true; exit 1; }
-            done
+            # One submission for all three plugins: Apple's queue time is per submission,
+            # and the first ones for a new account can take an hour or more.
+            mkdir -p notarize/bundles
+            for b in "${bundles[@]}"; do ditto "$b" "notarize/bundles/$(basename "$b")"; done
+            ditto -c -k notarize/bundles notarize/FuzzyFilter.zip
+            xcrun notarytool submit notarize/FuzzyFilter.zip --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" --wait --timeout 3h --output-format json | tee notarize/result.json || true
+            if ! grep -q '"status" *: *"Accepted"' notarize/result.json; then
+              echo "Notarization did not finish as Accepted"
+              id=$(sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p' notarize/result.json | head -1)
+              [ -n "$id" ] && xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" || true
+              exit 1
+            fi
             for b in "${bundles[@]}"; do
               xcrun stapler staple "$b"
               xcrun stapler validate "$b"
