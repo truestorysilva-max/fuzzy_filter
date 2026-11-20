@@ -5,7 +5,11 @@ four-peak resonant filter, with a MicroFreak-style mod grid.
 Built with [JUCE](https://juce.com) 8 as VST3 (Windows and Mac), AU (Mac) and
 AAX (Windows and Mac, for Pro Tools).
 
-**AAX is unsigned for now.** Retail Pro Tools only loads AAX plugins signed
+**Mac builds are signed and notarized.** CI signs the AU, VST3 and AAX with
+the Developer ID certificate from the repository's secrets and has Apple
+notarize them, so they open without any Gatekeeper workaround.
+
+**AAX still needs PACE signing.** Retail Pro Tools only loads AAX plugins signed
 with PACE's wraptool. Until that's set up, test the AAX in Pro Tools
 Developer, which Avid gives to members of its developer program. Signing
 needs a PACE developer account and an iLok, and runs as one extra CI step

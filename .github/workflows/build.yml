@@ -48,25 +48,75 @@ jobs:
           ${{ matrix.pluginval_bin }} --strictness-level 5 --skip-gui-tests --validate-in-process \
             --validate "build/FuzzyFilter_artefacts/Release/VST3/Fuzzy Filter.vst3"
 
-      # Mac: sign the bundles ad hoc (no Apple account needed yet), check the
-      # AU with Apple's validator the way Logic does, and zip each bundle with
-      # ditto so the download keeps its permissions and signature.
-      - name: Sign, validate and package (macOS)
+      # Mac: sign each bundle with the Developer ID certificate, have Apple
+      # notarize them, staple the tickets, check the AU with Apple's
+      # validator the way Logic does, and zip each bundle with ditto so the
+      # download keeps its permissions and signature. Without the signing
+      # secrets (a fork, say) it falls back to an ad hoc signature.
+      - name: Sign, notarize, validate and package (macOS)
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
           out=build/FuzzyFilter_artefacts/Release
-          codesign --force --deep --sign - "$out/AU/Fuzzy Filter.component"
-          codesign --force --deep --sign - "$out/VST3/Fuzzy Filter.vst3"
-          codesign --force --deep --sign - "$out/AAX/Fuzzy Filter.aaxplugin"
+          bundles=("$out/AU/Fuzzy Filter.component" "$out/VST3/Fuzzy Filter.vst3" "$out/AAX/Fuzzy Filter.aaxplugin")
+
+          if [ -n "${MACOS_CERT_P12:-}" ]; then
+            keychain="$RUNNER_TEMP/signing.keychain-db"
+            kcpass="$(uuidgen)"
+            echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security create-keychain -p "$kcpass" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$kcpass" "$keychain"
+            security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpass" "$keychain" > /dev/null
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            rm "$RUNNER_TEMP/cert.p12"
+            identity="$(security find-identity -v -p codesigning "$keychain" | grep 'Developer ID Application' | head -1 | awk '{print $2}')"
+            if [ -z "$identity" ]; then echo "No Developer ID Application identity in MACOS_CERT_P12"; exit 1; fi
+
+            for b in "${bundles[@]}"; do
+              codesign --force --deep --options runtime --timestamp --sign "$identity" "$b"
+              codesign --verify --strict --verbose=2 "$b"
+            done
+
+            mkdir -p notarize
+            for b in "${bundles[@]}"; do ditto -c -k --keepParent "$b" "notarize/$(basename "$b").zip"; done
+            for z in notarize/*.zip; do
+              xcrun notarytool submit "$z" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" --wait --timeout 30m --output-format json | tee notarize/result.json
+              grep -q '"status" *: *"Accepted"' notarize/result.json || { echo "Notarization failed for $z"; \
+                id=$(sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p' notarize/result.json | head -1); \
+                xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" || true; exit 1; }
+            done
+            for b in "${bundles[@]}"; do
+              xcrun stapler staple "$b"
+              xcrun stapler validate "$b"
+            done
+            spctl --assess --type install --verbose=2 "${bundles[0]}" || true
+            suffix=""
+          else
+            echo "::warning::Signing secrets not available, so the Mac build is signed ad hoc only."
+            for b in "${bundles[@]}"; do codesign --force --deep --sign - "$b"; done
+            suffix=" (unsigned)"
+          fi
+
           mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R "$out/AU/Fuzzy Filter.component" ~/Library/Audio/Plug-Ins/Components/
+          cp -R "${bundles[0]}" ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar || true
           auval -v aufx Fzf1 Fzfl
+
           mkdir -p package
-          ditto -c -k --keepParent "$out/AU/Fuzzy Filter.component" "package/Fuzzy Filter AU.zip"
-          ditto -c -k --keepParent "$out/VST3/Fuzzy Filter.vst3" "package/Fuzzy Filter VST3.zip"
-          ditto -c -k --keepParent "$out/AAX/Fuzzy Filter.aaxplugin" "package/Fuzzy Filter AAX (unsigned).zip"
+          ditto -c -k --keepParent "${bundles[0]}" "package/Fuzzy Filter AU${suffix}.zip"
+          ditto -c -k --keepParent "${bundles[1]}" "package/Fuzzy Filter VST3${suffix}.zip"
+          # AAX also needs PACE signing before retail Pro Tools will load it.
+          ditto -c -k --keepParent "${bundles[2]}" "package/Fuzzy Filter AAX (needs PACE signing).zip"
 
       - name: Upload VST3 (Windows)
         if: runner.os == 'Windows'
