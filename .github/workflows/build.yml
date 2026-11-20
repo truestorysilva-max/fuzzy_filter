@@ -64,6 +64,16 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
+          # Drop stray spaces or newlines that can sneak in when a secret is pasted.
+          APPLE_ID="$(printf '%s' "${APPLE_ID:-}" | tr -d '[:space:]')"
+          APPLE_APP_PASSWORD="$(printf '%s' "${APPLE_APP_PASSWORD:-}" | tr -d '[:space:]')"
+          APPLE_TEAM_ID="$(printf '%s' "${APPLE_TEAM_ID:-}" | tr -d '[:space:]')"
+          # Shape checks only: these never print the values themselves.
+          if [ -n "${MACOS_CERT_P12:-}" ]; then
+            [[ "$APPLE_ID" == *@*.* ]] || echo "::warning::APPLE_ID does not look like an email address"
+            [[ "$APPLE_APP_PASSWORD" =~ ^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$ ]] || echo "::warning::APPLE_APP_PASSWORD is not in the xxxx-xxxx-xxxx-xxxx app-specific password form"
+            [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || echo "::warning::APPLE_TEAM_ID is not a 10-character team ID"
+          fi
           out=build/FuzzyFilter_artefacts/Release
           bundles=("$out/AU/Fuzzy Filter.component" "$out/VST3/Fuzzy Filter.vst3" "$out/AAX/Fuzzy Filter.aaxplugin")
 
