@@ -242,20 +242,44 @@ void EnvDisplay::paint (juce::Graphics& g)
         auto* param = proc.apvts.getParameter (ModParamIds::env (env + 1, suffix));
         return param->getValue();
     };
-    const float a = 4.0f + 50.0f * norm ("Attack");
-    const float d = 4.0f + 50.0f * norm ("Decay");
-    const float r = 4.0f + 60.0f * norm ("Release");
-    const float s = plainOf (proc, ModParamIds::env (env + 1, "Sustain"));
-    const float sustainY = 2.0f + (h - 2.0f) * (1.0f - s);
-    const float hold = std::max (10.0f, w - a - d - r - 4.0f);
-
     juce::Path shape;
-    shape.startNewSubPath (0.0f, h);
-    shape.lineTo (a, 2.0f);
-    shape.lineTo (a + d, sustainY);
-    shape.lineTo (a + d + hold, sustainY);
-    shape.lineTo (std::min (w, a + d + hold + r), h);
-    shape.closeSubPath();
+    if (followerView)
+    {
+        // How the follower answers a short burst: rise, hold, then fall.
+        const float a = 3.0f + 50.0f * norm ("FolAttack");
+        const float hold = 60.0f * norm ("FolHold");
+        const float r = 8.0f + (w * 0.6f) * norm ("FolRelease");
+        const float x0 = 6.0f;
+        shape.startNewSubPath (x0, h);
+        for (int i = 0; i <= 12; ++i) // attack curve
+        {
+            const float t = (float) i / 12.0f;
+            shape.lineTo (x0 + a * t, h - (h - 2.0f) * (1.0f - std::exp (-4.0f * t)) / (1.0f - std::exp (-4.0f)));
+        }
+        shape.lineTo (x0 + a + hold, 2.0f);
+        for (int i = 1; i <= 24; ++i) // release curve
+        {
+            const float t = (float) i / 24.0f;
+            shape.lineTo (std::min (w, x0 + a + hold + r * t), 2.0f + (h - 2.0f) * (1.0f - std::exp (-4.6f * t)));
+        }
+        shape.lineTo (std::min (w, x0 + a + hold + r), h);
+        shape.closeSubPath();
+    }
+    else
+    {
+        const float a = 4.0f + 50.0f * norm ("Attack");
+        const float d = 4.0f + 50.0f * norm ("Decay");
+        const float r = 4.0f + 60.0f * norm ("Release");
+        const float s = plainOf (proc, ModParamIds::env (env + 1, "Sustain"));
+        const float sustainY = 2.0f + (h - 2.0f) * (1.0f - s);
+        const float hold = std::max (10.0f, w - a - d - r - 4.0f);
+        shape.startNewSubPath (0.0f, h);
+        shape.lineTo (a, 2.0f);
+        shape.lineTo (a + d, sustainY);
+        shape.lineTo (a + d + hold, sustainY);
+        shape.lineTo (std::min (w, a + d + hold + r), h);
+        shape.closeSubPath();
+    }
     g.setColour (colours::ink);
     g.fillPath (shape);
 

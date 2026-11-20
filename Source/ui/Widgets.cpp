@@ -235,7 +235,10 @@ void Fader::Track::paint (juce::Graphics& g)
 ValueBox::ValueBox (APVTS& state, const juce::String& paramID, juce::String n, juce::Colour ink)
     : param (getParam (state, paramID)), name (std::move (n)), colour (ink), attachment (state, paramID, *this)
 {
-    setupDragSlider (*this, juce::Slider::LinearVertical);
+    // A vertical-drag rotary style: the value moves with how far you drag,
+    // like the knobs. (A linear slider maps the box's 24 pixels to the whole
+    // range, so it could only reach 0% or 100%.)
+    setupDragSlider (*this, juce::Slider::RotaryHorizontalVerticalDrag);
     setDoubleClickReturnValue (true, defaultPlain (param));
     setTooltip (param.getName (64) + " (drag up or down)");
     onValueChange = [this] { repaint(); };

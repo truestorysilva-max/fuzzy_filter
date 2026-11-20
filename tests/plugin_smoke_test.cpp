@@ -254,11 +254,11 @@ int main()
         check (diff > 0.2, "LFO shape: the grid changes LFO 1's shape", diff);
     }
 
-    // Parameter count: 24 sound + 28 LFO + 14 envelope + 3 assign + 112 grid.
+    // Parameter count: 24 sound + 28 LFO + 20 envelope and follower + 3 assign + 112 grid.
     {
         FuzzyFilterProcessor p;
         const int count = p.getParameters().size();
-        check (count == 24 + 28 + 14 + 3 + 112, "parameter count", count);
+        check (count == 24 + 28 + 20 + 3 + 112, "parameter count", count);
     }
 
     // Factory presets: each one loads, names itself, and plays finite audio.

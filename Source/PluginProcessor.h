@@ -110,6 +110,9 @@ private:
     std::atomic<float>* pLfoStereo[4] {};
     std::atomic<float>* pLfoRetrigger[4] {};
     std::atomic<float>* pEnvSensitivity[2] {};
+    std::atomic<float>* pFolAttack[2] {};
+    std::atomic<float>* pFolHold[2] {};
+    std::atomic<float>* pFolRelease[2] {};
     std::atomic<float>* pEnvSource[2] {};
     std::atomic<float>* pAssignTarget[Mod::numAssigns] {};
     std::atomic<float>* pAmounts[Mod::numSources][Mod::numDestinations] {};

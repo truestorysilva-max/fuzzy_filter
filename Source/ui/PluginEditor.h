@@ -92,10 +92,12 @@ private:
     ui::ModGrid* modGrid = nullptr;
     ui::Segments* lfoTabs = nullptr;
     ui::Segments* envTabs = nullptr;
+    ui::Segments* envView = nullptr; // ADSR or Follower
 
     struct LfoControls { ui::Knob* rate; ui::Knob* division; std::vector<juce::Component*> all; };
     std::array<LfoControls, 4> lfoControls;
     std::array<std::vector<juce::Component*>, 2> envControls;
+    std::array<std::vector<juce::Component*>, 2> folControls;
     int currentLfo = 0, currentEnv = 0;
 
     std::vector<std::pair<int, ui::Knob*>> modKnobs;   // slot, knob

@@ -44,12 +44,14 @@ class EnvDisplay : public juce::Component
 public:
     explicit EnvDisplay (FuzzyFilterProcessor& p) : proc (p) { setInterceptsMouseClicks (false, false); }
     void setEnv (int index) { env = index; repaint(); }
+    void setFollowerView (bool f) { followerView = f; repaint(); }
     void refresh() { repaint(); }
     void paint (juce::Graphics& g) override;
 
 private:
     FuzzyFilterProcessor& proc;
     int env = 0;
+    bool followerView = false;
 };
 
 // Two input level bars (left and right) after the input gain.

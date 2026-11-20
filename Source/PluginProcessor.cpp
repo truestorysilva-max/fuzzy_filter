@@ -60,6 +60,9 @@ FuzzyFilterProcessor::FuzzyFilterProcessor()
     for (int e = 0; e < 2; ++e)
     {
         pEnvSensitivity[e] = get (ModParamIds::env (e + 1, "Sensitivity"));
+        pFolAttack[e] = get (ModParamIds::env (e + 1, "FolAttack"));
+        pFolHold[e] = get (ModParamIds::env (e + 1, "FolHold"));
+        pFolRelease[e] = get (ModParamIds::env (e + 1, "FolRelease"));
         pEnvSource[e] = get (ModParamIds::env (e + 1, "Source"));
     }
     for (int a = 0; a < Mod::numAssigns; ++a)
@@ -236,6 +239,7 @@ void FuzzyFilterProcessor::runModulation (int n)
         detR[e] = buf.getReadPointer (1);
         detGain[e] = src == Choices::postInputGain ? postGain : 1.0f;
         sensGain[e] = juce::Decibels::decibelsToGain (pEnvSensitivity[e]->load() * kSensitivityMaxDb);
+        followers[e].setTimes (pFolAttack[e]->load(), pFolHold[e]->load(), pFolRelease[e]->load());
     }
 
     float baseVals[Mod::numSlots];

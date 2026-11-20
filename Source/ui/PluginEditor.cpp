@@ -427,6 +427,9 @@ void FuzzyFilterEditor::buildModRow()
         envTabs = &add<Segments> (rect (px + iw - 60, top + 10, 60, 26), juce::StringArray { "1", "2" },
                                   Segments::Style { colours::ink, colours::cream, colours::cream, juce::Colours::transparentBlack, true, 18.0f, false });
         envTabs->onChange = [this] (int i) { showEnv (i); };
+        envView = &add<Segments> (rect (px + 56, top + 12, 122, 22), juce::StringArray { "ADSR", "FOLLOWER" },
+                                  Segments::Style { colours::cream, colours::red, colours::cream, colours::cream.withAlpha (0.5f), false, 10.0f, false });
+        envView->onChange = [this] (int) { showEnv (currentEnv); };
         envDisplay = &add<EnvDisplay> (rect (px, top + 44, iw, 58), proc);
 
         const char* suffixes[] = { "Attack", "Decay", "Sustain", "Release", "Threshold", "Sensitivity" };
@@ -448,6 +451,24 @@ void FuzzyFilterEditor::buildModRow()
                                                   "LISTENS TO", colours::ink, colours::cream);
             source.setShortNames ({ "Pre gain", "Post gain", "Sidechain" });
             list.push_back (&source);
+
+            // The follower view: how the follower rises, holds and falls,
+            // plus the controls it shares with the envelope view.
+            auto& fol = folControls[(size_t) e];
+            const char* folSuffixes[] = { "FolAttack", "FolHold", "FolRelease", "Threshold", "Sensitivity" };
+            const char* folLabels[] = { "ATK", "HOLD", "REL", "THR", "SENS" };
+            const int folW = iw / 5;
+            for (int i = 0; i < 5; ++i)
+            {
+                auto& k = add<Knob> (rect (px + i * folW - 3, top + 110, folW + 6, 68), s, ModParamIds::env (e + 1, folSuffixes[i]),
+                                     schemes::onRed, folLabels[i], 36.0f, LL::twoLine);
+                fol.push_back (&k);
+                if (i == 3) modKnobs.push_back ({ e == 0 ? Mod::env1Threshold : Mod::env2Threshold, &k });
+            }
+            auto& folSource = add<ChoiceMenuButton> (rect (px, top + 186, 190, 22), s, ModParamIds::env (e + 1, "Source"),
+                                                     "LISTENS TO", colours::ink, colours::cream);
+            folSource.setShortNames ({ "Pre gain", "Post gain", "Sidechain" });
+            fol.push_back (&folSource);
         }
     }
 
@@ -474,10 +495,16 @@ void FuzzyFilterEditor::showEnv (int index)
 {
     currentEnv = index;
     envTabs->setSelected (index);
+    const bool follower = envView->getSelected() == 1;
     envDisplay->setEnv (index);
+    envDisplay->setFollowerView (follower);
     for (int e = 0; e < 2; ++e)
+    {
         for (auto* c : envControls[(size_t) e])
-            c->setVisible (e == index);
+            c->setVisible (e == index && ! follower);
+        for (auto* c : folControls[(size_t) e])
+            c->setVisible (e == index && follower);
+    }
 }
 
 std::pair<float, float> FuzzyFilterEditor::modRange (int slot) const

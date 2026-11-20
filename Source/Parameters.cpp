@@ -137,6 +137,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (timeParam (ModParamIds::env (n, "Decay"), name + "Decay", 0.001f, 10.0f, 0.2f));
         layout.add (percentParam (ModParamIds::env (n, "Sustain"), name + "Sustain", 0.7f));
         layout.add (timeParam (ModParamIds::env (n, "Release"), name + "Release", 0.001f, 20.0f, 0.3f));
+
+        // The follower that listens to the audio and fires this envelope.
+        const String fol = "Follower " + String (n) + " ";
+        layout.add (timeParam (ModParamIds::env (n, "FolAttack"), fol + "Attack", 0.0001f, 1.0f, 0.001f));
+        layout.add (std::make_unique<AudioParameterFloat> (ParameterID { ModParamIds::env (n, "FolHold"), 1 }, fol + "Hold",
+                                                           NormalisableRange<float> (0.0f, 2.0f, 0.0f, 0.4f), 0.0f,
+                                                           AudioParameterFloatAttributes().withStringFromValueFunction (
+                                                               [] (float v, int) { return v < 0.0005f ? String ("0 ms") : secondsText (v); })));
+        layout.add (timeParam (ModParamIds::env (n, "FolRelease"), fol + "Release", 0.005f, 5.0f, 0.08f));
     }
 
     // Mod grid: what the three Assign columns point at...
