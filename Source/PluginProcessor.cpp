@@ -221,9 +221,14 @@ void FuzzyFilterProcessor::runModulation (int n)
         phaseOffset[l] = pLfoPhase[l]->load() / 360.0f;
         stereoOffset[l] = pLfoStereo[l]->load() / 360.0f;
         retrigger[l] = (int) pLfoRetrigger[l]->load();
-        // While the host plays, a synced LFO locks its phase to the song position.
+        // While the host plays, a synced LFO locks its phase to the song
+        // position, shifted by where the last restart put it. (Without that
+        // shift, the next block would undo every restart.)
+        if (retrigger[l] == Choices::retriggerOff)
+            syncRestartOffset[l] = 0.0;
+        syncBeats[l] = beats;
         if (synced[l] && playing && hasPpq)
-            lfos[l].setPhase (ppq / beats);
+            lfos[l].setPhase (ppq / beats - syncRestartOffset[l]);
     }
 
     // Follower inputs.
@@ -294,7 +299,16 @@ void FuzzyFilterProcessor::runModulation (int n)
         for (int l = 0; l < 4; ++l)
         {
             if ((retrigger[l] == Choices::retriggerEnv1 && opened[0]) || (retrigger[l] == Choices::retriggerEnv2 && opened[1]))
+            {
                 lfos[l].setPhase (0.0);
+                lfoRestarts[l].fetch_add (1);
+                if (synced[l] && playing && hasPpq)
+                {
+                    const double ppqNow = ppq + (double) i * bpm / 60.0 / preparedSampleRate;
+                    const double cycles = ppqNow / syncBeats[l];
+                    syncRestartOffset[l] = cycles - std::floor (cycles);
+                }
+            }
             const float hz = synced[l] ? syncedHz[l] : slotValue (Mod::lfo1Rate + l, 0, i);
             // The shape can be moved by the grid through an Assign column;
             // the modulated value steps through the shapes in menu order.

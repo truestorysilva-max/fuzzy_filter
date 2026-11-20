@@ -25,7 +25,7 @@ void setParam (FuzzyFilterProcessor& p, const juce::String& id, float plainValue
 
 // Fills main input with noise and the sidechain with a click every 250 ms,
 // runs `blocks` blocks, and returns the RMS of every output bus.
-std::vector<double> run (FuzzyFilterProcessor& p, int blocks, bool& finite)
+std::vector<double> run (FuzzyFilterProcessor& p, int blocks, bool& finite, int startSample = 0)
 {
     constexpr int blockSize = 512;
     const int numChannels = juce::jmax (p.getTotalNumInputChannels(), p.getTotalNumOutputChannels());
@@ -36,7 +36,7 @@ std::vector<double> run (FuzzyFilterProcessor& p, int blocks, bool& finite)
 
     std::vector<double> sums ((size_t) p.getBusCount (false), 0.0);
     finite = true;
-    int sample = 0;
+    int sample = startSample;
     for (int b = 0; b < blocks; ++b)
     {
         buffer.clear();
@@ -252,6 +252,54 @@ int main()
         check (juce::String (Mod::slotNames[Mod::lfo1Wave]) == "LFO 1 Shape", "LFO shape is listed as an Assign target");
         check (moved.second >= 0.0f && plain.second < 0.0f, "LFO shape: live value shows only when assigned", moved.second);
         check (diff > 0.2, "LFO shape: the grid changes LFO 1's shape", diff);
+    }
+
+    // LFO restart with tempo sync while the host plays: each sidechain click
+    // restarts LFO 1, and the restart sticks (the song position doesn't undo it).
+    {
+        struct Head : juce::AudioPlayHead
+        {
+            double ppq = 0.0;
+            juce::Optional<PositionInfo> getPosition() const override
+            {
+                PositionInfo info;
+                info.setBpm (120.0);
+                info.setPpqPosition (ppq);
+                info.setIsPlaying (true);
+                return info;
+            }
+        } head;
+
+        FuzzyFilterProcessor p;
+        p.setPlayHead (&head);
+        setParam (p, ModParamIds::lfo (1, "Sync"), 1.0f);       // tempo, 1/4 = 2 Hz at 120 bpm
+        setParam (p, ModParamIds::lfo (1, "Retrigger"), 1.0f);  // when Env 1 fires
+        setParam (p, ModParamIds::env (1, "Source"), 2.0f);     // listens to the sidechain
+        setParam (p, ModParamIds::env (1, "Threshold"), -10.0f);
+        p.prepareToPlay (48000.0, 512);
+
+        bool finite = false, allLocked = true;
+        int checked = 0;
+        double worst = 0.0;
+        for (int b = 0; b < 300; ++b)
+        {
+            run (p, 1, finite, b * 512); // the sidechain clicks every 12000 samples
+            head.ppq += 512.0 / 48000.0 * 2.0;
+            const int end = (b + 1) * 512;
+            const int sinceClick = end % 12000;
+            if (b > 30 && sinceClick > 1024 && sinceClick < 11000)
+            {
+                double expected = sinceClick * 2.0 / 48000.0;
+                expected -= std::floor (expected);
+                double diff = std::abs (p.getLfoPhase (0) - expected);
+                diff = std::min (diff, 1.0 - diff);
+                worst = std::max (worst, diff);
+                allLocked = allLocked && diff < 0.02;
+                ++checked;
+            }
+        }
+        check (p.getLfoRestarts (0) >= 12, "LFO restart: each sidechain click restarts LFO 1", p.getLfoRestarts (0));
+        check (checked > 100 && allLocked, "LFO restart: a tempo-synced LFO keeps its restart while the song plays", worst);
     }
 
     // Parameter count: 24 sound + 28 LFO + 20 envelope and follower + 3 assign + 112 grid.

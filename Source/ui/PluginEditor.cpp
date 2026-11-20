@@ -412,8 +412,12 @@ void FuzzyFilterEditor::buildModRow()
             auto& wave = add<ChoiceMenuButton> (rect (bx, ky, 84, 22), s, ModParamIds::lfo (l + 1, "Wave"), "", colours::cream, colours::ink);
             auto& sync = add<ChoiceMenuButton> (rect (bx, ky + 27, 84, 22), s, ModParamIds::lfo (l + 1, "Sync"), "", juce::Colours::transparentBlack,
                                                 colours::cream, colours::cream.withAlpha (0.4f));
-            auto& retrig = add<ChoiceMenuButton> (rect (bx, ky + 54, 84, 22), s, ModParamIds::lfo (l + 1, "Retrigger"), "RTG",
+            auto& retrig = add<ChoiceMenuButton> (rect (px, ky + 80, iw, 22), s, ModParamIds::lfo (l + 1, "Retrigger"), "RESTART",
                                                   juce::Colours::transparentBlack, colours::cream, colours::cream.withAlpha (0.4f));
+            retrig.setShortNames ({ "Off", "When Env 1 fires", "When Env 2 fires" });
+            retrig.setMenuNote ("Restart the LFO from its Phase when an envelope fires");
+            retrig.setTooltip ("Restart: jumps this LFO back to its Phase each time the chosen envelope fires. "
+                               "An envelope fires when its follower goes above THR in the Env panel.");
             c.all = { c.rate, c.division, &phase, &stereo, &wave, &sync, &retrig };
             modKnobs.push_back ({ Mod::lfo1Rate + l, c.rate });
         }

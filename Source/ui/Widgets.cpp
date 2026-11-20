@@ -362,6 +362,11 @@ void ChoiceMenuButton::paint (juce::Graphics& g)
 void ChoiceMenuButton::mouseDown (const juce::MouseEvent&)
 {
     juce::PopupMenu menu;
+    if (menuNote.isNotEmpty())
+    {
+        menu.addSectionHeader (menuNote);
+        menu.addSeparator();
+    }
     for (int i = 0; i < param->choices.size(); ++i)
         menu.addItem (i + 1, param->choices[i], true, i == index);
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),

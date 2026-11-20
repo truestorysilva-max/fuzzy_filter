@@ -29,13 +29,15 @@ class LfoDisplay : public juce::Component
 {
 public:
     explicit LfoDisplay (FuzzyFilterProcessor& p) : proc (p) { setInterceptsMouseClicks (false, false); }
-    void setLfo (int index) { lfo = index; repaint(); }
-    void refresh() { repaint(); }
+    void setLfo (int index) { lfo = index; lastRestarts = -1; repaint(); }
+    void refresh();
     void paint (juce::Graphics& g) override;
 
 private:
     FuzzyFilterProcessor& proc;
     int lfo = 0;
+    int lastRestarts = -1;
+    float restartFlash = 0.0f; // 1 right after a restart, fades out
 };
 
 // An envelope's ADSR shape, its follower threshold and the live follower level.

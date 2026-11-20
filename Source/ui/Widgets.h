@@ -161,6 +161,8 @@ public:
                       juce::Colour fill, juce::Colour text, juce::Colour outline = juce::Colours::transparentBlack);
     // Shorter names to show on the button; the menu keeps the full ones.
     void setShortNames (juce::StringArray names) { shortNames = std::move (names); repaint(); }
+    // A line of help shown at the top of the menu.
+    void setMenuNote (juce::String note) { menuNote = std::move (note); }
     void paint (juce::Graphics& g) override;
     void mouseDown (const juce::MouseEvent& e) override;
 
@@ -168,6 +170,7 @@ private:
     juce::AudioParameterChoice* param;
     juce::String prefix;
     juce::StringArray shortNames;
+    juce::String menuNote;
     juce::Colour fill, text, outline;
     int index = 0;
     juce::ParameterAttachment attachment;

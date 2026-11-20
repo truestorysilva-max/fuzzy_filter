@@ -121,8 +121,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::lfo (n, "Division"), 1 }, name + "Division", divisions, 6));
         layout.add (floatParam (ModParamIds::lfo (n, "Phase"), name + "Phase", { 0.0f, 360.0f, 1.0f }, 0.0f, "deg"));
         layout.add (floatParam (ModParamIds::lfo (n, "Stereo"), name + "Stereo", { 0.0f, 180.0f, 1.0f }, 0.0f, "deg"));
-        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::lfo (n, "Retrigger"), 1 }, name + "Retrigger",
-                                                            StringArray { "Off", "Env 1", "Env 2" }, 0));
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::lfo (n, "Retrigger"), 1 }, name + "Restart",
+                                                            StringArray { "Off", "When Env 1 fires", "When Env 2 fires" }, 0));
     }
 
     // Envelopes, each triggered by its own envelope follower

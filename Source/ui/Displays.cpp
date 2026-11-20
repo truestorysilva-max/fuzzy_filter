@@ -184,6 +184,17 @@ float waveAt (int wave, float p)
 }
 } // namespace
 
+void LfoDisplay::refresh()
+{
+    const int restarts = proc.getLfoRestarts (lfo);
+    if (lastRestarts >= 0 && restarts != lastRestarts)
+        restartFlash = 1.0f;
+    else
+        restartFlash = std::max (0.0f, restartFlash - 0.12f);
+    lastRestarts = restarts;
+    repaint();
+}
+
 void LfoDisplay::paint (juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
@@ -229,6 +240,17 @@ void LfoDisplay::paint (juce::Graphics& g)
     if (stereo > 0.001f)
         marker (phase + stereo, false);
     marker (phase, true);
+
+    // A "RESTART" tag that flashes each time the LFO is restarted.
+    if (restartFlash > 0.0f)
+    {
+        const auto tag = juce::Rectangle<float> (w - 62.0f, 0.0f, 62.0f, 16.0f);
+        g.setColour (colours::red.withAlpha (restartFlash));
+        g.fillRect (tag);
+        g.setColour (colours::cream.withAlpha (restartFlash));
+        g.setFont (fonts::label (10.0f, true, 1.0f));
+        g.drawText ("RESTART", tag, juce::Justification::centred, false);
+    }
 }
 
 // ---------------------------------------------------------------- EnvDisplay

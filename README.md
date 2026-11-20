@@ -70,7 +70,7 @@ envelope follower can listen to it.
 
 | Section | What it does |
 |---|---|
-| 4 LFOs | Sine, triangle, saw up, saw down, square, sample and hold, smooth random (a curve through random points that never stops at them). 0.01 Hz to 2 kHz, or synced to the host tempo (1/64 to 8 bars). Phase, stereo offset (0 to 180 degrees) and retrigger from Env 1 or Env 2. |
+| 4 LFOs | Sine, triangle, saw up, saw down, square, sample and hold, smooth random (a curve through random points that never stops at them). 0.01 Hz to 2 kHz, or synced to the host tempo (1/64 to 8 bars). Phase, stereo offset (0 to 180 degrees), and Restart: the LFO jumps back to its Phase each time Env 1 or Env 2 fires (also with tempo sync while the song plays). |
 | 2 envelope followers | Listen to the input before or after the input gain, or to the sidechain. Attack, hold and release set how they rise and fall; threshold and sensitivity set when they fire. In the UI they sit behind the envelopes: switch the Env panel from ADSR to FOLLOWER. |
 | 2 ADSR envelopes | Each one is gated by its own follower. Attack 0.1 ms to 10 s, decay to 10 s, release to 20 s. |
 | Mod grid | 8 sources (4 LFOs, 2 envelopes, 2 followers) by 14 destinations, each crossing -100% to +100%. |

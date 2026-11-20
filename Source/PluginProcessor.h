@@ -56,6 +56,8 @@ public:
     // Peak input level since the last call, per channel (after the input gain).
     float takeInputPeak (int ch) { return inputPeak[ch & 1].exchange (0.0f); }
     double getLfoPhase (int lfo) const { return lfoPhase[lfo & 3].load(); }
+    // Counts the restarts of an LFO, so the display can flash on each one.
+    int getLfoRestarts (int lfo) const { return lfoRestarts[lfo & 3].load(); }
 
     PresetManager presets { apvts };
 
@@ -134,6 +136,9 @@ private:
     std::array<std::atomic<float>, Mod::numSlots> slotLive {};
     std::atomic<float> inputPeak[2] {};
     std::atomic<double> lfoPhase[4] {};
+    std::atomic<int> lfoRestarts[4] {};
+    double syncRestartOffset[4] {}; // cycles; where the last restart moved a tempo-synced LFO
+    double syncBeats[4] { 1.0, 1.0, 1.0, 1.0 };
 
     double preparedSampleRate = 44100.0;
 
