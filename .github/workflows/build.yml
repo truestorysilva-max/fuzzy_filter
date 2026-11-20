@@ -48,15 +48,34 @@ jobs:
           ${{ matrix.pluginval_bin }} --strictness-level 5 --skip-gui-tests --validate-in-process \
             --validate "build/FuzzyFilter_artefacts/Release/VST3/Fuzzy Filter.vst3"
 
-      - name: Upload VST3
+      # Mac: sign the bundles ad hoc (no Apple account needed yet), check the
+      # AU with Apple's validator the way Logic does, and zip each bundle with
+      # ditto so the download keeps its permissions and signature.
+      - name: Sign, validate and package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          out=build/FuzzyFilter_artefacts/Release
+          codesign --force --deep --sign - "$out/AU/Fuzzy Filter.component"
+          codesign --force --deep --sign - "$out/VST3/Fuzzy Filter.vst3"
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "$out/AU/Fuzzy Filter.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aufx Fzf1 Fzfl
+          mkdir -p package
+          ditto -c -k --keepParent "$out/AU/Fuzzy Filter.component" "package/Fuzzy Filter AU.zip"
+          ditto -c -k --keepParent "$out/VST3/Fuzzy Filter.vst3" "package/Fuzzy Filter VST3.zip"
+
+      - name: Upload VST3 (Windows)
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: FuzzyFilter-${{ matrix.name }}-VST3
+          name: FuzzyFilter-Windows-VST3
           path: build/FuzzyFilter_artefacts/Release/VST3/
 
-      - name: Upload AU
+      - name: Upload AU and VST3 (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: FuzzyFilter-macOS-AU
-          path: build/FuzzyFilter_artefacts/Release/AU/
+          name: FuzzyFilter-macOS
+          path: package/
