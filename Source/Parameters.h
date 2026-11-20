@@ -32,7 +32,6 @@ inline constexpr auto levelHP       = "levelHP";
 inline constexpr auto levelNP       = "levelNP";
 inline constexpr auto levelComb     = "levelComb";
 inline constexpr auto filterMix     = "filterMix";
-inline constexpr auto outputMode    = "outputMode";
 
 inline constexpr auto bypass        = "bypass";
 } // namespace ParamIDs
@@ -51,7 +50,6 @@ namespace Choices
 enum FuzzPosition { preFilter = 0, postFilter = 1 };
 enum FuzzCharacter { germanium = 0, silicon = 1 };
 enum ExciteSource { inputAudio = 0, sidechain = 1, gridOnly = 2 };
-enum OutputMode { mixed = 0, separate = 1 };
 enum LfoSync { free = 0, tempo = 1 };
 enum LfoRetrigger { retriggerOff = 0, retriggerEnv1 = 1, retriggerEnv2 = 2 };
 enum FollowerSource { preInputGain = 0, postInputGain = 1, followerSidechain = 2 };

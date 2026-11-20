@@ -100,8 +100,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (levelParam (ParamIDs::levelNP, "Notch Pass Level", kLevelOffDb));
     layout.add (levelParam (ParamIDs::levelComb, "Comb Level", kLevelOffDb));
     layout.add (percentParam (ParamIDs::filterMix, "Filter Mix", 1.0f));
-    layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamIDs::outputMode, 1 }, "Output Mode",
-                                                        StringArray { "Mixed", "Separate" }, 0));
 
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::bypass, 1 }, "Bypass", false));
 

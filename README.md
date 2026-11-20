@@ -42,7 +42,7 @@ CMake downloads JUCE the first time (about 150 MB).
 | Input | Input Gain, -24 to +24 dB, saturation fades in above 0 dB |
 | Fuzz | Fuzz, Volume, Bias, Character (Germanium or Silicon), Mix, Fuzz On, Fuzz Position (pre or post filter). Runs at 4x oversampling |
 | Filter | Frequency, Rez (resonance, -100% to +100%; below 0 rounds the peaks off), Space L, Space R, Excite 1 and 2 with a source each (input audio, sidechain, or mod grid only), Comb Damping |
-| Output | Levels for Low Pass, Band Pass, High Pass, Notch Pass and Comb; Filter Mix; Output Mode (Mixed or Separate) |
+| Output | Levels for Low Pass, Band Pass, High Pass, Notch Pass and Comb; Filter Mix |
 
 **Filter cores.** Four 12 dB/octave state variable filters: two on the left,
 two on the right. Each core also has a comb filter tuned to the same frequency,
@@ -51,8 +51,8 @@ QPAS's Smile Pass sound: high pass at the bottom of the range, a notch in the
 middle, low pass at the top.
 
 **Separate outputs.** The plugin has five extra stereo outputs, one per filter
-type. They are off by default; turn them on in the DAW and set Output Mode to
-Separate. They carry each filter type at full level (the mixer levels only
+type. They are always active: turn them on in the DAW and route them like any
+other output, while the main output keeps the mix. They carry each filter type at full level (the mixer levels only
 affect the main output), and are taken straight from the filter, so the fuzz
 reaches them only when it is set to pre filter. Whether a host shows extra
 outputs on an audio effect varies, so check this in Ableton and Pro Tools.
@@ -71,8 +71,9 @@ envelope follower can listen to it.
 
 Fixed destinations: Input Gain, Frequency, Rez, Space L, Space R, Excite 1,
 Excite 2, Fuzz, Fuzz Bias, Fuzz Volume and Fuzz Mix. The three Assign columns
-can each point at an LFO rate, any envelope time, sustain or threshold, Comb
-Damping, Filter Mix or one of the five output levels.
+can each point at an LFO rate or shape, any envelope time, sustain or threshold,
+Comb Damping, Filter Mix or one of the five output levels. Modulating an LFO
+shape steps through the shapes in menu order (sine up to smooth random).
 
 Modulation is computed per sample and per channel, so a stereo LFO moves the
 left and right filters apart. Like the QPAS, Space R follows Space L's

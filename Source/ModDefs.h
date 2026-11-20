@@ -26,6 +26,7 @@ enum Slot
     env1Threshold, env2Threshold,
     combDamping, filterMix,
     levelLP, levelBP, levelHP, levelNP, levelComb,
+    lfo1Wave, lfo2Wave, lfo3Wave, lfo4Wave,
     numSlots
 };
 
@@ -41,7 +42,8 @@ inline constexpr std::array<const char*, numSlots> slotParamIds {
     "env2Attack", "env2Decay", "env2Sustain", "env2Release",
     "env1Threshold", "env2Threshold",
     "combDamping", "filterMix",
-    "levelLP", "levelBP", "levelHP", "levelNP", "levelComb"
+    "levelLP", "levelBP", "levelHP", "levelNP", "levelComb",
+    "lfo1Wave", "lfo2Wave", "lfo3Wave", "lfo4Wave"
 };
 
 inline constexpr std::array<const char*, numSlots> slotNames {
@@ -51,7 +53,8 @@ inline constexpr std::array<const char*, numSlots> slotNames {
     "Env 2 Attack", "Env 2 Decay", "Env 2 Sustain", "Env 2 Release",
     "Env 1 Threshold", "Env 2 Threshold",
     "Comb Damping", "Filter Mix",
-    "Low Pass Level", "Band Pass Level", "High Pass Level", "Notch Pass Level", "Comb Level"
+    "Low Pass Level", "Band Pass Level", "High Pass Level", "Notch Pass Level", "Comb Level",
+    "LFO 1 Shape", "LFO 2 Shape", "LFO 3 Shape", "LFO 4 Shape"
 };
 
 // ---- Destinations (grid columns) ----

@@ -90,7 +90,7 @@ int main()
         check (p.getLatencySamples() >= 0, "latency reported", p.getLatencySamples());
     }
 
-    // Every bus on, Separate mode, every filter type up, Excite on the sidechain.
+    // Every bus on, every filter type up, Excite on the sidechain.
     {
         FuzzyFilterProcessor p;
         auto layout = p.getBusesLayout();
@@ -98,7 +98,6 @@ int main()
             layout.outputBuses.getReference (i) = juce::AudioChannelSet::stereo();
         check (p.setBusesLayout (layout), "all separate outputs can be turned on");
 
-        setParam (p, ParamIDs::outputMode, (float) Choices::separate);
         for (auto* id : { ParamIDs::levelBP, ParamIDs::levelHP, ParamIDs::levelNP, ParamIDs::levelComb })
             setParam (p, id, 0.0f);
         setParam (p, ParamIDs::excite1Source, (float) Choices::sidechain);
@@ -109,15 +108,12 @@ int main()
         p.prepareToPlay (48000.0, 512);
         bool finite = false;
         const auto rms = run (p, 200, finite);
-        check (finite, "separate mode: every output is finite");
+        check (finite, "separate outputs: every output is finite");
         bool allCarry = true;
         for (size_t bus = 1; bus < rms.size(); ++bus)
             allCarry = allCarry && rms[bus] > 0.001;
-        check (allCarry, "separate mode: all 5 filter type outputs carry audio", rms.back());
-
-        setParam (p, ParamIDs::outputMode, (float) Choices::mixed);
-        const auto mixedRms = run (p, 50, finite);
-        check (mixedRms[1] == 0.0, "mixed mode: separate outputs are silent", mixedRms[1]);
+        check (allCarry, "separate outputs: all 5 filter type outputs carry audio", rms.back());
+        check (rms[0] > 0.001, "separate outputs: main output still carries the mix", rms[0]);
     }
 
     // Mono in, no sidechain, fuzz after the filter at full gain.
@@ -217,7 +213,7 @@ int main()
         }
         setParam (p, Mod::assignTargetIds[0], 1.0f); // LFO 1 Rate
         setParam (p, Mod::assignTargetIds[1], 5.0f); // Env 1 Attack
-        setParam (p, Mod::assignTargetIds[2], 21.0f); // Comb Level (last choice)
+        setParam (p, Mod::assignTargetIds[2], 21.0f); // Comb Level
         setParam (p, ParamIDs::excite1Source, (float) Choices::gridOnly);
         p.prepareToPlay (48000.0, 512);
         bool finite = false;
@@ -225,11 +221,44 @@ int main()
         check (finite && rms[0] < 2.5, "mod stress: every crossing at 100% stays finite and bounded", rms[0]);
     }
 
-    // Parameter count: 25 sound + 28 LFO + 14 envelope + 3 assign + 112 grid.
+    // LFO shape as an Assign target: LFO 2 switches LFO 1's shape.
+    {
+        auto lfo1Trace = [] (bool assigned)
+        {
+            FuzzyFilterProcessor p;
+            setParam (p, ModParamIds::lfo (1, "Rate"), 3.0f);
+            setParam (p, ModParamIds::lfo (2, "Rate"), 0.7f);
+            setParam (p, ModParamIds::lfo (2, "Wave"), 4.0f); // square
+            if (assigned)
+            {
+                setParam (p, Mod::assignTargetIds[0], (float) (Mod::lfo1Wave - Mod::numFixedDestinations + 1));
+                setParam (p, ModParamIds::amount (Mod::lfo2, Mod::numFixedDestinations), 1.0f);
+            }
+            p.prepareToPlay (48000.0, 512);
+            std::vector<float> trace;
+            bool finite = false;
+            for (int b = 0; b < 200; ++b)
+            {
+                run (p, 1, finite);
+                trace.push_back (p.getSourceValue (Mod::lfo1));
+            }
+            return std::make_pair (trace, p.getSlotLive (Mod::lfo1Wave));
+        };
+        const auto plain = lfo1Trace (false);
+        const auto moved = lfo1Trace (true);
+        double diff = 0.0;
+        for (size_t i = 0; i < plain.first.size(); ++i)
+            diff = std::max (diff, (double) std::abs (plain.first[i] - moved.first[i]));
+        check (juce::String (Mod::slotNames[Mod::lfo1Wave]) == "LFO 1 Shape", "LFO shape is listed as an Assign target");
+        check (moved.second >= 0.0f && plain.second < 0.0f, "LFO shape: live value shows only when assigned", moved.second);
+        check (diff > 0.2, "LFO shape: the grid changes LFO 1's shape", diff);
+    }
+
+    // Parameter count: 24 sound + 28 LFO + 14 envelope + 3 assign + 112 grid.
     {
         FuzzyFilterProcessor p;
         const int count = p.getParameters().size();
-        check (count == 25 + 28 + 14 + 3 + 112, "parameter count", count);
+        check (count == 24 + 28 + 14 + 3 + 112, "parameter count", count);
     }
 
     // Factory presets: each one loads, names itself, and plays finite audio.

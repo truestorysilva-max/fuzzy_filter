@@ -46,7 +46,6 @@ FuzzyFilterProcessor::FuzzyFilterProcessor()
     pFuzzCharacter = get (ParamIDs::fuzzCharacter);
     pExcite1Source = get (ParamIDs::excite1Source);
     pExcite2Source = get (ParamIDs::excite2Source);
-    pOutputMode = get (ParamIDs::outputMode);
     bypassParam = dynamic_cast<juce::AudioParameterBool*> (apvts.getParameter (ParamIDs::bypass));
 
     for (int l = 0; l < 4; ++l)
@@ -293,7 +292,12 @@ void FuzzyFilterProcessor::runModulation (int n)
             if ((retrigger[l] == Choices::retriggerEnv1 && opened[0]) || (retrigger[l] == Choices::retriggerEnv2 && opened[1]))
                 lfos[l].setPhase (0.0);
             const float hz = synced[l] ? syncedHz[l] : slotValue (Mod::lfo1Rate + l, 0, i);
-            lfos[l].tick (hz, waves[l], phaseOffset[l], stereoOffset[l], prevSourceL[Mod::lfo1 + l], prevSourceR[Mod::lfo1 + l]);
+            // The shape can be moved by the grid through an Assign column;
+            // the modulated value steps through the shapes in menu order.
+            const auto wave = slots[(size_t) (Mod::lfo1Wave + l)].dynamic
+                                ? (ff::Lfo::Wave) juce::jlimit (0, (int) ff::Lfo::numWaves - 1, juce::roundToInt (slotValue (Mod::lfo1Wave + l, 0, i)))
+                                : waves[l];
+            lfos[l].tick (hz, wave, phaseOffset[l], stereoOffset[l], prevSourceL[Mod::lfo1 + l], prevSourceR[Mod::lfo1 + l]);
         }
         for (int e = 0; e < 2; ++e)
         {
@@ -474,8 +478,6 @@ void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             sidechain.copyFrom (ch, 0, sc, juce::jmin (ch, scCh - 1), 0, n);
     }
 
-    const bool separate = (int) pOutputMode->load() == Choices::separate;
-
     auto writeOutputs = [&] (bool typesAvailable)
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
@@ -489,7 +491,7 @@ void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             auto out = getBusBuffer (buffer, false, busIndex);
             for (int ch = 0; ch < out.getNumChannels(); ++ch)
             {
-                if (separate && typesAvailable)
+                if (typesAvailable)
                     out.copyFrom (ch, 0, typeOut, ty * 2 + juce::jmin (ch, 1), 0, n);
                 else
                     out.clear (ch, 0, n);

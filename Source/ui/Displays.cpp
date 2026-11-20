@@ -190,7 +190,7 @@ void LfoDisplay::paint (juce::Graphics& g)
     const float stroke = 6.0f;
     const float w = b.getWidth(), h = b.getHeight();
     const float amp = (h - stroke) * 0.5f, mid = h * 0.5f;
-    const int wave = juce::roundToInt (plainOf (proc, ModParamIds::lfo (lfo + 1, "Wave")));
+    const int wave = juce::roundToInt (currentPlain (proc, Mod::lfo1Wave + lfo)); // follows the grid
     const float stereo = plainOf (proc, ModParamIds::lfo (lfo + 1, "Stereo")) / 360.0f;
 
     // Two cycles across the display, like the design.

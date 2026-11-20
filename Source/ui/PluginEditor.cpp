@@ -369,9 +369,6 @@ void FuzzyFilterEditor::buildSoundRow()
         const int x = 744, w = 242, px = x + 14, iw = w - 28;
         add<CutPanel> (rect (x, top, w, h), schemes::onInk, std::array<float, 8> { 0, .01f, 0, 0, .01f, .01f, .02f, 0 });
         add<TitleLabel> (rect (px, top + 14, 70, 34), "OUT", colours::cream, 34.0f);
-        auto& mode = add<Segments> (rect (px + iw - 140, top + 19, 140, 24), juce::StringArray { "MIXED", "SEPARATE" },
-                                    Segments::Style { colours::cream, colours::ink, colours::cream, colours::cream.withAlpha (0.4f), false, 11.0f, false });
-        mode.attachTo (*s.getParameter (ParamIDs::outputMode));
 
         const char* ids[] = { ParamIDs::levelLP, ParamIDs::levelBP, ParamIDs::levelHP, ParamIDs::levelNP, ParamIDs::levelComb };
         const char* labels[] = { "LP", "BP", "HP", "NP", "CMB" };

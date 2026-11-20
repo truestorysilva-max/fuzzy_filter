@@ -101,7 +101,6 @@ private:
     std::atomic<float>* pFuzzCharacter = nullptr;
     std::atomic<float>* pExcite1Source = nullptr;
     std::atomic<float>* pExcite2Source = nullptr;
-    std::atomic<float>* pOutputMode = nullptr;
     juce::AudioParameterBool* bypassParam = nullptr;
 
     std::atomic<float>* pLfoWave[4] {};
