@@ -2,8 +2,14 @@
 
 A stereo audio effect plugin: a Fuzz Face style fuzz and a QPAS-inspired
 four-peak resonant filter, with a MicroFreak-style mod grid.
-Built with [JUCE](https://juce.com) 8 as VST3 (Windows and Mac) and AU (Mac).
-AAX for Pro Tools comes in step 4.
+Built with [JUCE](https://juce.com) 8 as VST3 (Windows and Mac), AU (Mac) and
+AAX (Windows and Mac, for Pro Tools).
+
+**AAX is unsigned for now.** Retail Pro Tools only loads AAX plugins signed
+with PACE's wraptool. Until that's set up, test the AAX in Pro Tools
+Developer, which Avid gives to members of its developer program. Signing
+needs a PACE developer account and an iLok, and runs as one extra CI step
+once they exist.
 
 ## Getting a build without compiling
 

@@ -58,6 +58,7 @@ jobs:
           out=build/FuzzyFilter_artefacts/Release
           codesign --force --deep --sign - "$out/AU/Fuzzy Filter.component"
           codesign --force --deep --sign - "$out/VST3/Fuzzy Filter.vst3"
+          codesign --force --deep --sign - "$out/AAX/Fuzzy Filter.aaxplugin"
           mkdir -p ~/Library/Audio/Plug-Ins/Components
           cp -R "$out/AU/Fuzzy Filter.component" ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar || true
@@ -65,6 +66,7 @@ jobs:
           mkdir -p package
           ditto -c -k --keepParent "$out/AU/Fuzzy Filter.component" "package/Fuzzy Filter AU.zip"
           ditto -c -k --keepParent "$out/VST3/Fuzzy Filter.vst3" "package/Fuzzy Filter VST3.zip"
+          ditto -c -k --keepParent "$out/AAX/Fuzzy Filter.aaxplugin" "package/Fuzzy Filter AAX (unsigned).zip"
 
       - name: Upload VST3 (Windows)
         if: runner.os == 'Windows'
@@ -73,7 +75,14 @@ jobs:
           name: FuzzyFilter-Windows-VST3
           path: build/FuzzyFilter_artefacts/Release/VST3/
 
-      - name: Upload AU and VST3 (macOS)
+      - name: Upload AAX (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FuzzyFilter-Windows-AAX-unsigned
+          path: build/FuzzyFilter_artefacts/Release/AAX/
+
+      - name: Upload AU, VST3 and AAX (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:

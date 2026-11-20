@@ -26,7 +26,12 @@ if(FF_BUILD_PLUGIN)
     if(APPLE)
         list(APPEND FF_FORMATS AU)
     endif()
-    # AAX (Pro Tools) is added in step 4, once the Avid SDK and signing are set up.
+    # AAX for Pro Tools, built with the AAX SDK that ships inside JUCE. The
+    # build is unsigned: Pro Tools Developer loads it as is, while the retail
+    # Pro Tools only loads AAX plugins signed with PACE's wraptool.
+    if(WIN32 OR APPLE)
+        list(APPEND FF_FORMATS AAX)
+    endif()
 
     juce_add_plugin(FuzzyFilter
         PRODUCT_NAME "Fuzzy Filter"
@@ -42,6 +47,7 @@ if(FF_BUILD_PLUGIN)
         EDITOR_WANTS_KEYBOARD_FOCUS FALSE
         VST3_CATEGORIES Fx Filter Distortion
         AU_MAIN_TYPE kAudioUnitType_Effect
+        AAX_CATEGORY AAX_ePlugInCategory_EQ AAX_ePlugInCategory_Harmonic
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
     # Fonts for the UI (both SIL Open Font License, see Resources/fonts).
