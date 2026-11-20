@@ -71,7 +71,10 @@ jobs:
           # Shape checks only: these never print the values themselves.
           if [ -n "${MACOS_CERT_P12:-}" ]; then
             [[ "$APPLE_ID" == *@*.* ]] || echo "::warning::APPLE_ID does not look like an email address"
-            [[ "$APPLE_APP_PASSWORD" =~ ^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$ ]] || echo "::warning::APPLE_APP_PASSWORD is not in the xxxx-xxxx-xxxx-xxxx app-specific password form"
+            if ! [[ "$APPLE_APP_PASSWORD" =~ ^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$ ]]; then
+              p="$APPLE_APP_PASSWORD"
+              echo "::warning::APPLE_APP_PASSWORD is not in the xxxx-xxxx-xxxx-xxxx form (length ${#p}, dashes $(printf '%s' "$p" | tr -cd '-' | wc -c | tr -d ' '), uppercase $([[ "$p" =~ [A-Z] ]] && echo yes || echo no), digits $([[ "$p" =~ [0-9] ]] && echo yes || echo no), other symbols $([[ "$p" =~ [^A-Za-z0-9-] ]] && echo yes || echo no))"
+            fi
             [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || echo "::warning::APPLE_TEAM_ID is not a 10-character team ID"
           fi
           out=build/FuzzyFilter_artefacts/Release
