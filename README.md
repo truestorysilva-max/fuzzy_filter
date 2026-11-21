@@ -76,7 +76,7 @@ envelope follower can listen to it.
 |---|---|
 | 4 LFOs | Sine, triangle, saw up, saw down, square, sample and hold, smooth random (a curve through random points that never stops at them). 0.01 Hz to 2 kHz, or synced to the host tempo (1/64 to 8 bars). Phase, stereo offset (0 to 180 degrees), and Restart: the LFO jumps back to its Phase each time Env 1 or Env 2 fires (also with tempo sync while the song plays). |
 | 2 envelope followers | Listen to the input before or after the input gain, or to the sidechain. Attack, hold and release set how they rise and fall; threshold and sensitivity set when they fire. In the UI they sit behind the envelopes: switch the Env panel from ADSR to FOLLOWER. |
-| 2 ADSR envelopes | Each one is gated by its own follower. Attack 0.1 ms to 10 s, decay to 10 s, release to 20 s. |
+| 2 ADSR envelopes | Each one is gated by its own follower, or by MIDI notes when Listens To is set to MIDI notes: every new note fires the envelope, and it releases when the last note is let go. Attack 0.1 ms to 10 s, decay to 10 s, release to 20 s. |
 | Mod grid | 8 sources (4 LFOs, 2 envelopes, 2 followers) by 14 destinations, each crossing -100% to +100%. |
 
 Fixed destinations: Input Gain, Frequency, Rez, Space L, Space R, Excite 1,
@@ -90,6 +90,16 @@ left and right filters apart. Like the QPAS, Space R follows Space L's
 modulation until something is routed to Space R itself. Setting an Excite
 source to "Mod grid only" makes the grid signal the excite signal, with the
 Excite knob as its amount.
+
+## Playing the envelopes from MIDI
+
+Set an envelope's **Listens to** to **MIDI notes**, then send MIDI to the plugin:
+
+- **Ableton:** on a MIDI track, set **MIDI To** to the track with Fuzzy Filter, then pick Fuzzy Filter in the second menu.
+- **Logic:** open the plugin window and choose an instrument track in the MIDI side chain menu in its header.
+- **Pro Tools:** set a MIDI track's output to Fuzzy Filter.
+
+Because it takes MIDI, the Audio Unit is a music effect (type `aumf`).
 
 ## UI and presets
 

@@ -453,7 +453,7 @@ void FuzzyFilterEditor::buildModRow()
             }
             auto& source = add<ChoiceMenuButton> (rect (px, top + 186, 190, 22), s, ModParamIds::env (e + 1, "Source"),
                                                   "LISTENS TO", colours::ink, colours::cream);
-            source.setShortNames ({ "Pre gain", "Post gain", "Sidechain" });
+            source.setShortNames ({ "Pre gain", "Post gain", "Sidechain", "MIDI notes" });
             list.push_back (&source);
 
             // The follower view: how the follower rises, holds and falls,
@@ -471,7 +471,7 @@ void FuzzyFilterEditor::buildModRow()
             }
             auto& folSource = add<ChoiceMenuButton> (rect (px, top + 186, 190, 22), s, ModParamIds::env (e + 1, "Source"),
                                                      "LISTENS TO", colours::ink, colours::cream);
-            folSource.setShortNames ({ "Pre gain", "Post gain", "Sidechain" });
+            folSource.setShortNames ({ "Pre gain", "Post gain", "Sidechain", "MIDI notes" });
             fol.push_back (&folSource);
         }
     }

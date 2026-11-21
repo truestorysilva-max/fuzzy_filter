@@ -370,6 +370,41 @@ int main()
         }
     }
 
+    // MIDI notes fire Env 2: it rises on a note, holds while the note is
+    // held, falls after note-off, and the audio threshold is ignored.
+    {
+        FuzzyFilterProcessor p;
+        setParam (p, ModParamIds::env (2, "Source"), (float) Choices::midiNotes);
+        setParam (p, ModParamIds::env (2, "Threshold"), -60.0f); // audio alone would fire it
+        setParam (p, ModParamIds::env (2, "Attack"), 0.001f);
+        setParam (p, ModParamIds::env (2, "Sustain"), 0.8f);
+        setParam (p, ModParamIds::env (2, "Release"), 0.01f);
+        p.prepareToPlay (48000.0, 512);
+        juce::AudioBuffer<float> buf (juce::jmax (p.getTotalNumInputChannels(), p.getTotalNumOutputChannels()), 512);
+        auto block = [&] (const juce::MidiBuffer& m)
+        {
+            buf.clear();
+            for (int i = 0; i < 512; ++i) buf.setSample (0, i, (i % 64) < 32 ? 0.5f : -0.5f);
+            juce::MidiBuffer copy (m);
+            p.processBlock (buf, copy);
+            return p.getSourceValue (Mod::env2);
+        };
+        juce::MidiBuffer none, on, off;
+        on.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 10);
+        off.addEvent (juce::MidiMessage::noteOff (1, 60), 10);
+        float silentAudio = 0.0f;
+        for (int b = 0; b < 10; ++b) silentAudio = std::max (silentAudio, block (none));
+        block (on);
+        float held = 0.0f;
+        for (int b = 0; b < 20; ++b) held = block (none);
+        block (off);
+        float released = 1.0f;
+        for (int b = 0; b < 20; ++b) released = block (none);
+        check (silentAudio < 0.01f, "midi: loud audio does not fire a MIDI-gated envelope", silentAudio);
+        check (held > 0.7f, "midi: a held note holds Env 2 at sustain", held);
+        check (released < 0.01f, "midi: Env 2 falls after note-off", released);
+    }
+
     std::printf ("\n%s: %d failed\n", failures == 0 ? "ALL PASSED" : "FAILURES", failures);
     return failures == 0 ? 0 : 1;
 }

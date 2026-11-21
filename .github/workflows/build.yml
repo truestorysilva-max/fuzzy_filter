@@ -127,7 +127,7 @@ jobs:
           mkdir -p ~/Library/Audio/Plug-Ins/Components
           cp -R "${bundles[0]}" ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar || true
-          auval -v aufx Fzf1 Fzfl
+          auval -v aumf Fzf1 Fzfl
 
           mkdir -p package
           ditto -c -k --keepParent "${bundles[0]}" "package/Fuzzy Filter AU${suffix}.zip"

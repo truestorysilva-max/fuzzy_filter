@@ -135,6 +135,8 @@ void FuzzyFilterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     for (auto& l : lfos) l.prepare (sampleRate);
     for (auto& f : followers) f.prepare (sampleRate);
     for (auto& g : gates) g.reset();
+    noteHeld.fill (false);
+    numNotesHeld = 0;
     for (auto& e : envelopes) e.prepare (sampleRate);
     for (int s = 0; s < Mod::numSources; ++s)
         prevSourceL[s] = prevSourceR[s] = 0.0f;
@@ -195,7 +197,29 @@ void FuzzyFilterProcessor::updateRoutings()
 
 // Runs the LFOs, followers and envelopes for the block and writes every
 // dynamic slot's normalised value, per channel and per sample, into modValues.
-void FuzzyFilterProcessor::runModulation (int n)
+bool FuzzyFilterProcessor::handleMidi (const juce::MidiMessage& m)
+{
+    if (m.isNoteOn())
+    {
+        auto& held = noteHeld[(size_t) ((m.getChannel() - 1) * 128 + m.getNoteNumber())];
+        if (! held) { held = true; ++numNotesHeld; }
+        return true;
+    }
+    if (m.isNoteOff())
+    {
+        auto& held = noteHeld[(size_t) ((m.getChannel() - 1) * 128 + m.getNoteNumber())];
+        if (held) { held = false; --numNotesHeld; }
+        return false;
+    }
+    if (m.isAllNotesOff() || m.isAllSoundOff())
+    {
+        noteHeld.fill (false);
+        numNotesHeld = 0;
+    }
+    return false;
+}
+
+void FuzzyFilterProcessor::runModulation (int n, const juce::MidiBuffer& midi)
 {
     // Host tempo, for LFO tempo sync.
     double bpm = 120.0, ppq = 0.0;
@@ -236,20 +260,30 @@ void FuzzyFilterProcessor::runModulation (int n)
     const float* detL[2];
     const float* detR[2];
     float detGain[2], sensGain[2];
+    bool midiGated[2];
     for (int e = 0; e < 2; ++e)
     {
         const int src = (int) pEnvSource[e]->load();
+        midiGated[e] = src == Choices::midiNotes;
         const auto& buf = src == Choices::followerSidechain ? sidechain : work;
         detL[e] = buf.getReadPointer (0);
         detR[e] = buf.getReadPointer (1);
-        detGain[e] = src == Choices::postInputGain ? postGain : 1.0f;
+        // With MIDI notes firing the envelope, the follower keeps listening
+        // to the input after the gain, so it is still useful in the grid.
+        detGain[e] = (src == Choices::postInputGain || midiGated[e]) ? postGain : 1.0f;
         sensGain[e] = juce::Decibels::decibelsToGain (pEnvSensitivity[e]->load() * kSensitivityMaxDb);
         followers[e].setTimes (pFolAttack[e]->load(), pFolHold[e]->load(), pFolRelease[e]->load());
     }
 
     float baseVals[Mod::numSlots];
+    auto midiIt = midi.cbegin();
     for (int i = 0; i < n; ++i)
     {
+        // 0. MIDI notes that land on this sample.
+        bool noteStarted = false;
+        for (; midiIt != midi.cend() && (*midiIt).samplePosition <= i; ++midiIt)
+            noteStarted |= handleMidi ((*midiIt).getMessage());
+
         // 1. Knob positions plus modulation (from the previous sample's sources).
         for (int s = 0; s < Mod::numSlots; ++s)
         {
@@ -288,8 +322,19 @@ void FuzzyFilterProcessor::runModulation (int n)
             const float level = followers[e].process (x) * sensGain[e];
             const int base = e == 0 ? Mod::env1Attack : Mod::env2Attack;
             const float thresholdDb = slotValue (e == 0 ? Mod::env1Threshold : Mod::env2Threshold, 0, i);
-            opened[e] = gates[e].update (level, thresholdDb);
-            envelopes[e].gate (gates[e].isOpen());
+            if (midiGated[e])
+            {
+                // Every new note fires the envelope; it releases once the
+                // last held note is let go.
+                opened[e] = noteStarted;
+                if (noteStarted) envelopes[e].retrigger();
+                envelopes[e].gate (numNotesHeld > 0);
+            }
+            else
+            {
+                opened[e] = gates[e].update (level, thresholdDb);
+                envelopes[e].gate (gates[e].isOpen());
+            }
             envOut[e] = envelopes[e].tick (slotValue (base, 0, i), slotValue (base + 1, 0, i),
                                            slotValue (base + 2, 0, i), slotValue (base + 3, 0, i));
             folOut[e] = juce::jlimit (0.0f, 1.0f, level);
@@ -469,7 +514,7 @@ void FuzzyFilterProcessor::runFilter (int n)
     }
 }
 
-void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
     const int n = buffer.getNumSamples();
@@ -519,6 +564,8 @@ void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     if (bypassParam != nullptr && bypassParam->get())
     {
+        for (const auto meta : midi) // keep track of held notes while bypassed
+            handleMidi (meta.getMessage());
         writeOutputs (false);
         return;
     }
@@ -526,7 +573,7 @@ void FuzzyFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // 2. Modulation for the whole block (followers listen to the raw input
     //    or the sidechain, so this runs before the input stage).
     updateRoutings();
-    runModulation (n);
+    runModulation (n, midi);
 
     // 3. Input gain and saturation.
     runInputStage (n);
