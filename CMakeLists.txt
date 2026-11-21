@@ -82,7 +82,7 @@ if(FF_BUILD_PLUGIN)
         IS_MIDI_EFFECT FALSE
         EDITOR_WANTS_KEYBOARD_FOCUS FALSE
         VST3_CATEGORIES Fx Filter Distortion
-        AU_MAIN_TYPE kAudioUnitType_Effect
+        AU_MAIN_TYPE kAudioUnitType_MusicEffect
         AAX_CATEGORY AAX_ePlugInCategory_EQ AAX_ePlugInCategory_Harmonic
         COPY_PLUGIN_AFTER_BUILD FALSE
         BUILD_VERSION "${FF_BUILD_NUMBER}"
