@@ -132,7 +132,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (floatParam (ModParamIds::env (n, "Threshold"), name + "Threshold", { -60.0f, 0.0f, 0.1f }, -30.0f, "dB"));
         layout.add (percentParam (ModParamIds::env (n, "Sensitivity"), name + "Sensitivity", 0.5f));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::env (n, "Source"), 1 }, name + "Source",
-                                                            StringArray { "Pre input gain", "Post input gain", "Sidechain" }, 1));
+                                                            StringArray { "Pre input gain", "Post input gain", "Sidechain", "MIDI notes" }, 1));
         layout.add (timeParam (ModParamIds::env (n, "Attack"), name + "Attack", 0.0001f, 10.0f, 0.005f));
         layout.add (timeParam (ModParamIds::env (n, "Decay"), name + "Decay", 0.001f, 10.0f, 0.2f));
         layout.add (percentParam (ModParamIds::env (n, "Sustain"), name + "Sustain", 0.7f));

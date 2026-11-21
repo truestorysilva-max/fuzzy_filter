@@ -26,7 +26,7 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 2.0; }
@@ -85,7 +85,9 @@ private:
 
     void prepareBuffers (int maxBlock);
     void updateRoutings();
-    void runModulation (int numSamples);
+    void runModulation (int numSamples, const juce::MidiBuffer& midi);
+    // Tracks which MIDI notes are held. Returns true for a new note-on.
+    bool handleMidi (const juce::MidiMessage& m);
     void runInputStage (int numSamples);
     void runFuzz (juce::AudioBuffer<float>& buffer, int numSamples);
     void runFilter (int numSamples);
@@ -132,6 +134,8 @@ private:
     ff::FollowerGate gates[2];
     ff::Adsr envelopes[2];
     float prevSourceL[Mod::numSources] {}, prevSourceR[Mod::numSources] {};
+    std::array<bool, 16 * 128> noteHeld {}; // channel * 128 + note
+    int numNotesHeld = 0;
     std::array<std::atomic<float>, Mod::numSources> sourceValues {};
     std::array<std::atomic<float>, Mod::numSlots> slotLive {};
     std::atomic<float> inputPeak[2] {};

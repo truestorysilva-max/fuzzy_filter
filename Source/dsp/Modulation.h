@@ -176,6 +176,10 @@ public:
     void prepare (double sampleRate) { fs = (float) sampleRate; reset(); }
     void reset() { stage = idle; value = 0.0f; }
 
+    // Starts the attack again from wherever the envelope is now (a new
+    // MIDI note while others are held), so there is no jump to zero.
+    void retrigger() { stage = attackStage; }
+
     void gate (bool on)
     {
         if (on && (stage == idle || stage == releaseStage)) stage = attackStage;
