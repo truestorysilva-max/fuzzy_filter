@@ -302,11 +302,11 @@ int main()
         check (checked > 100 && allLocked, "LFO restart: a tempo-synced LFO keeps its restart while the song plays", worst);
     }
 
-    // Parameter count: 24 sound + 28 LFO + 20 envelope and follower + 3 assign + 112 grid.
+    // Parameter count: 24 sound + 28 LFO + 22 envelope and follower + 3 assign + 112 grid.
     {
         FuzzyFilterProcessor p;
         const int count = p.getParameters().size();
-        check (count == 24 + 28 + 20 + 3 + 112, "parameter count", count);
+        check (count == 24 + 28 + 22 + 3 + 112, "parameter count", count);
     }
 
     // Factory presets: each one loads, names itself, and plays finite audio.
@@ -402,7 +402,7 @@ int main()
     // held, falls after note-off, and the audio threshold is ignored.
     {
         FuzzyFilterProcessor p;
-        setParam (p, ModParamIds::env (2, "Source"), (float) Choices::midiNotes);
+        setParam (p, ModParamIds::env (2, "Trigger"), (float) Choices::triggerMidi);
         setParam (p, ModParamIds::env (2, "Threshold"), -60.0f); // audio alone would fire it
         setParam (p, ModParamIds::env (2, "Attack"), 0.001f);
         setParam (p, ModParamIds::env (2, "Sustain"), 0.8f);
@@ -431,6 +431,16 @@ int main()
         check (silentAudio < 0.01f, "midi: loud audio does not fire a MIDI-gated envelope", silentAudio);
         check (held > 0.7f, "midi: a held note holds Env 2 at sustain", held);
         check (released < 0.01f, "midi: Env 2 falls after note-off", released);
+
+        // A very short note (on and off one sample apart) still gives a hit.
+        juce::MidiBuffer blip;
+        blip.addEvent (juce::MidiMessage::noteOn (1, 62, (juce::uint8) 100), 440);
+        blip.addEvent (juce::MidiMessage::noteOff (1, 62), 441);
+        const float blipPeak = block (blip);
+        check (blipPeak > 0.5f, "midi: a one-sample note still fires a full attack", blipPeak);
+
+        // The follower keeps tracking the audio while MIDI fires the envelope.
+        check (p.getSourceValue (Mod::follower2) > 0.05f, "midi: Follower 2 still tracks audio", p.getSourceValue (Mod::follower2));
     }
 
     std::printf ("\n%s: %d failed\n", failures == 0 ? "ALL PASSED" : "FAILURES", failures);

@@ -71,6 +71,7 @@ FuzzyFilterProcessor::FuzzyFilterProcessor()
         pFolHold[e] = get (ModParamIds::env (e + 1, "FolHold"));
         pFolRelease[e] = get (ModParamIds::env (e + 1, "FolRelease"));
         pEnvSource[e] = get (ModParamIds::env (e + 1, "Source"));
+        pEnvTrigger[e] = get (ModParamIds::env (e + 1, "Trigger"));
     }
     for (int a = 0; a < Mod::numAssigns; ++a)
         pAssignTarget[a] = get (Mod::assignTargetIds[(size_t) a]);
@@ -271,13 +272,11 @@ void FuzzyFilterProcessor::runModulation (int n, const juce::MidiBuffer& midi)
     for (int e = 0; e < 2; ++e)
     {
         const int src = (int) pEnvSource[e]->load();
-        midiGated[e] = src == Choices::midiNotes;
+        midiGated[e] = (int) pEnvTrigger[e]->load() == Choices::triggerMidi;
         const auto& buf = src == Choices::followerSidechain ? sidechain : work;
         detL[e] = buf.getReadPointer (0);
         detR[e] = buf.getReadPointer (1);
-        // With MIDI notes firing the envelope, the follower keeps listening
-        // to the input after the gain, so it is still useful in the grid.
-        detGain[e] = (src == Choices::postInputGain || midiGated[e]) ? postGain : 1.0f;
+        detGain[e] = src == Choices::postInputGain ? postGain : 1.0f;
         sensGain[e] = juce::Decibels::decibelsToGain (pEnvSensitivity[e]->load() * kSensitivityMaxDb);
         followers[e].setTimes (pFolAttack[e]->load(), pFolHold[e]->load(), pFolRelease[e]->load());
     }
@@ -335,7 +334,10 @@ void FuzzyFilterProcessor::runModulation (int n, const juce::MidiBuffer& midi)
                 // last held note is let go.
                 opened[e] = noteStarted;
                 if (noteStarted) envelopes[e].retrigger();
-                envelopes[e].gate (numNotesHeld > 0);
+                // A note always gets its full attack, however short it is,
+                // so every note-on is heard as a hit.
+                const bool inAttack = envelopes[e].getStage() == ff::Adsr::attackStage;
+                envelopes[e].gate (numNotesHeld > 0 || inAttack);
             }
             else
             {
