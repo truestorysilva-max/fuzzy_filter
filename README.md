@@ -38,8 +38,8 @@ own runs the effect on the iPad's microphone or audio interface input.
 
 Differences from the desktop plugin:
 
-- **No separate outputs.** Few iPad hosts route extra AUv3 outputs, so the
-  iPad plugin has only the main stereo output.
+- **Separate outputs** are there as on desktop, but iPad hosts differ in
+  whether they show extra AUv3 outputs (AUM does), so check them in yours.
 - **Sidechain is off until the host turns it on.** Hosts that support AUv3
   sidechains (AUM does) can feed it; elsewhere Excite and the followers use
   the main input.

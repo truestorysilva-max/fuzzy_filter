@@ -3,7 +3,7 @@
 
 namespace
 {
-[[maybe_unused]] const char* const kTypeOutputNames[FuzzyFilterProcessor::kNumTypeOutputs] = {
+const char* const kTypeOutputNames[FuzzyFilterProcessor::kNumTypeOutputs] = {
     "Low Pass", "Band Pass", "High Pass", "Notch Pass", "Comb"
 };
 const int kLevelSlots[FuzzyFilterProcessor::kNumTypeOutputs] = {
@@ -28,14 +28,11 @@ juce::AudioProcessor::BusesProperties FuzzyFilterProcessor::makeBuses()
                     #endif
                      .withOutput ("Output", AudioChannelSet::stereo(), true);
 
-   #if ! JUCE_IOS
     // One extra stereo output per filter type. They are off until the host
-    // turns them on, so the plugin loads as a normal stereo effect. Left out
-    // on iPad: few iOS hosts route extra AUv3 outputs, and some refuse to
-    // load an effect that declares them.
+    // turns them on, so the plugin loads as a normal stereo effect (on iPad
+    // too, where hosts such as AUM can route them).
     for (auto* name : kTypeOutputNames)
         buses = buses.withOutput (name, AudioChannelSet::stereo(), false);
-   #endif
 
     return buses;
 }
