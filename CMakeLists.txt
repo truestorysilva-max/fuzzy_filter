@@ -26,7 +26,12 @@ if(FF_BUILD_PLUGIN)
     if(APPLE)
         list(APPEND FF_FORMATS AU)
     endif()
-    # AAX (Pro Tools) is added in step 4, once the Avid SDK and signing are set up.
+    # AAX for Pro Tools, built with the AAX SDK that ships inside JUCE. The
+    # build is unsigned: Pro Tools Developer loads it as is, while the retail
+    # Pro Tools only loads AAX plugins signed with PACE's wraptool.
+    if(WIN32 OR APPLE)
+        list(APPEND FF_FORMATS AAX)
+    endif()
 
     juce_add_plugin(FuzzyFilter
         PRODUCT_NAME "Fuzzy Filter"
@@ -36,19 +41,44 @@ if(FF_BUILD_PLUGIN)
         PLUGIN_CODE Fzf1
         FORMATS ${FF_FORMATS}
         IS_SYNTH FALSE
-        NEEDS_MIDI_INPUT FALSE
+        NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE
         IS_MIDI_EFFECT FALSE
         EDITOR_WANTS_KEYBOARD_FOCUS FALSE
         VST3_CATEGORIES Fx Filter Distortion
-        AU_MAIN_TYPE kAudioUnitType_Effect
+        AU_MAIN_TYPE kAudioUnitType_MusicEffect
+        AAX_CATEGORY AAX_ePlugInCategory_EQ AAX_ePlugInCategory_Harmonic
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
-    target_sources(FuzzyFilter PRIVATE
+    # Fonts for the UI (both SIL Open Font License, see Resources/fonts).
+    juce_add_binary_data(FuzzyFilterAssets SOURCES
+        Resources/fonts/LondrinaSolid-Regular.ttf
+        Resources/fonts/LondrinaSolid-Black.ttf
+        Resources/fonts/ArchivoNarrow-Medium.ttf
+        Resources/fonts/ArchivoNarrow-Bold.ttf)
+
+    set(FF_SOURCES
         Source/PluginProcessor.cpp
-        Source/Parameters.cpp)
+        Source/Parameters.cpp
+        Source/PresetManager.cpp
+        Source/ui/Style.cpp
+        Source/ui/Widgets.cpp
+        Source/ui/Displays.cpp
+        Source/ui/ModGrid.cpp
+        Source/ui/PluginEditor.cpp)
+
+    target_sources(FuzzyFilter PRIVATE ${FF_SOURCES})
 
     target_include_directories(FuzzyFilter PRIVATE Source)
+
+    # The short commit shown in the plugin window, so a test build can be
+    # matched to the code it came from.
+    execute_process(COMMAND git rev-parse --short HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    OUTPUT_VARIABLE FF_BUILD_ID OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(NOT FF_BUILD_ID)
+        set(FF_BUILD_ID "local")
+    endif()
+    target_compile_definitions(FuzzyFilter PRIVATE FF_BUILD_ID="${PROJECT_VERSION}-${FF_BUILD_ID}")
 
     target_compile_definitions(FuzzyFilter PUBLIC
         JUCE_WEB_BROWSER=0
@@ -57,6 +87,7 @@ if(FF_BUILD_PLUGIN)
 
     target_link_libraries(FuzzyFilter
         PRIVATE
+            FuzzyFilterAssets
             juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC
@@ -64,12 +95,10 @@ if(FF_BUILD_PLUGIN)
             juce::juce_recommended_lto_flags
             juce::juce_recommended_warning_flags)
 
-    # Runs the real processor without a host (bus layouts, outputs, state).
+    # Runs the real processor and editor without a host (bus layouts,
+    # outputs, state, presets, UI).
     juce_add_console_app(PluginSmokeTest PRODUCT_NAME "PluginSmokeTest")
-    target_sources(PluginSmokeTest PRIVATE
-        tests/plugin_smoke_test.cpp
-        Source/PluginProcessor.cpp
-        Source/Parameters.cpp)
+    target_sources(PluginSmokeTest PRIVATE tests/plugin_smoke_test.cpp ${FF_SOURCES})
     target_include_directories(PluginSmokeTest PRIVATE Source)
     target_compile_definitions(PluginSmokeTest PRIVATE
         JUCE_WEB_BROWSER=0
@@ -77,6 +106,7 @@ if(FF_BUILD_PLUGIN)
         JucePlugin_Name="Fuzzy Filter")
     target_link_libraries(PluginSmokeTest
         PRIVATE
+            FuzzyFilterAssets
             juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC

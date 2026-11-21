@@ -269,6 +269,50 @@ int main()
         check (opens == 1 && openDuringBurst && closedAfter, "follower gate: opens once on a burst and closes after", opens);
     }
 
+    // ---- Follower times: hold keeps the peak, release sets the fall.
+    {
+        auto levelAfter = [] (float holdS, float releaseS, int samplesAfter)
+        {
+            EnvelopeFollower f;
+            f.prepare (kFs);
+            f.setTimes (0.001f, holdS, releaseS);
+            for (int i = 0; i < 4800; ++i) f.process (0.5f);
+            float v = 0.0f;
+            for (int i = 0; i < samplesAfter; ++i) v = f.process (0.0f);
+            return v;
+        };
+        check (levelAfter (0.2f, 0.05f, 4800) > 0.49f, "follower: 200 ms hold keeps the level for 100 ms", levelAfter (0.2f, 0.05f, 4800));
+        check (levelAfter (0.0f, 0.05f, 4800) < 0.2f, "follower: no hold falls straight away", levelAfter (0.0f, 0.05f, 4800));
+        check (levelAfter (0.0f, 1.0f, 4800) > levelAfter (0.0f, 0.05f, 4800) * 2.0f, "follower: longer release falls slower");
+    }
+
+    // ---- Smooth random LFO: keeps moving through each new point. (A cosine
+    //      ease between points stops dead at the end of every cycle.)
+    {
+        Lfo lfo;
+        lfo.prepare (kFs);
+        float l = 0.0f, r = 0.0f, prev = 0.0f;
+        double nearEdge = 0.0, overall = 0.0;
+        int nearCount = 0, count = 0;
+        bool bounded = true;
+        for (int i = 0; i < 48000 * 30; ++i)
+        {
+            const double ph = lfo.getPhase();
+            lfo.tick (2.0f, Lfo::smoothRandom, 0.0f, 0.0f, l, r);
+            bounded = bounded && std::abs (l) <= 1.0f;
+            if (i > 0)
+            {
+                const double d = std::abs (l - prev);
+                overall += d; ++count;
+                if (ph < 0.02 || ph > 0.98) { nearEdge += d; ++nearCount; }
+            }
+            prev = l;
+        }
+        const double ratio = (nearEdge / nearCount) / (overall / count);
+        check (bounded, "smooth random: stays within -1..1");
+        check (ratio > 0.4, "smooth random: still moving at the end of each cycle", ratio);
+    }
+
     // ---- Fuzz: bounded, gain rises with Fuzz, low Bias gates quiet signals.
     {
         auto rmsOut = [] (FuzzFace::Params fp, float amp, double hz = 220.0)

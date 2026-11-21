@@ -4,6 +4,7 @@
 // Plain C++, no JUCE, so tests/dsp_tests.cpp can check them directly.
 
 #include "DspUtils.h"
+#include <algorithm>
 #include <cstdint>
 
 namespace ff
@@ -42,6 +43,9 @@ public:
         for (auto& c : chans)
             c = Channel {};
         chans[1].rng.state = 0x9e3779b9u;
+        for (auto& c : chans)
+            for (auto& pt : c.pts)
+                pt = 0.8f * c.rng.nextBipolar();
     }
 
     // Jumps to a phase (used for tempo sync and retrigger).
@@ -63,7 +67,8 @@ private:
     struct Channel
     {
         double lastP = 0.0;
-        float held = 0.0f, from = 0.0f, to = 0.0f;
+        float held = 0.0f;
+        float pts[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // smooth random: the curve runs from pts[1] to pts[2]
         FastRandom rng;
     };
 
@@ -95,8 +100,21 @@ private:
                 if (wrapped) c.held = c.rng.nextBipolar();
                 return c.held;
             case smoothRandom:
-                if (wrapped) { c.from = c.to; c.to = c.rng.nextBipolar(); }
-                return c.from + (c.to - c.from) * 0.5f * (1.0f - std::cos (kPi * (float) p));
+            {
+                // A Catmull-Rom curve through random points. Unlike a cosine
+                // ease, it keeps moving through each point instead of
+                // stopping there, so it never stalls at the end of a cycle.
+                if (wrapped)
+                {
+                    c.pts[0] = c.pts[1]; c.pts[1] = c.pts[2]; c.pts[2] = c.pts[3];
+                    c.pts[3] = 0.8f * c.rng.nextBipolar(); // 0.8 keeps the curve's overshoot inside -1..1
+                }
+                const float t = (float) p, t2 = t * t, t3 = t2 * t;
+                const float v = 0.5f * ((2.0f * c.pts[1]) + (-c.pts[0] + c.pts[2]) * t
+                                        + (2.0f * c.pts[0] - 5.0f * c.pts[1] + 4.0f * c.pts[2] - c.pts[3]) * t2
+                                        + (-c.pts[0] + 3.0f * c.pts[1] - 3.0f * c.pts[2] + c.pts[3]) * t3);
+                return std::clamp (v, -1.0f, 1.0f);
+            }
             case numWaves:
             default:
                 return 0.0f;
@@ -107,28 +125,46 @@ private:
     Channel chans[2];
 };
 
-// Peak envelope follower with a fast attack and a slower release.
+// Peak envelope follower with attack, hold and release times.
 // Output is the signal level, linear (1.0 = 0 dBFS).
 class EnvelopeFollower
 {
 public:
     void prepare (double sampleRate)
     {
-        attack = 1.0f - std::exp (-1.0f / (0.001f * (float) sampleRate)); // 1 ms
-        release = 1.0f - std::exp (-1.0f / (0.08f * (float) sampleRate)); // 80 ms
-        level = 0.0f;
+        fs = (float) sampleRate;
+        setTimes (0.001f, 0.0f, 0.08f);
+        reset();
     }
-    void reset() { level = 0.0f; }
+    void reset() { level = 0.0f; holdLeft = 0; }
+
+    // Attack: how fast it rises. Hold: how long it stays at a peak before
+    // falling. Release: how fast it falls. All in seconds.
+    void setTimes (float attackS, float holdS, float releaseS)
+    {
+        attack = 1.0f - std::exp (-1.0f / std::max (1.0f, attackS * fs));
+        release = 1.0f - std::exp (-1.0f / std::max (1.0f, releaseS * fs));
+        holdSamples = (int) (std::max (0.0f, holdS) * fs);
+    }
 
     float process (float x)
     {
         const float a = std::abs (x);
-        level += (a > level ? attack : release) * (a - level);
+        if (a >= level)
+        {
+            level += attack * (a - level);
+            holdLeft = holdSamples;
+        }
+        else if (holdLeft > 0)
+            --holdLeft;
+        else
+            level += release * (a - level);
         return level;
     }
 
 private:
-    float attack = 1.0f, release = 1.0f, level = 0.0f;
+    float fs = 44100.0f, attack = 1.0f, release = 1.0f, level = 0.0f;
+    int holdSamples = 0, holdLeft = 0;
 };
 
 // ADSR envelope, 0..1. Linear attack, exponential decay and release.
@@ -139,6 +175,10 @@ public:
 
     void prepare (double sampleRate) { fs = (float) sampleRate; reset(); }
     void reset() { stage = idle; value = 0.0f; }
+
+    // Starts the attack again from wherever the envelope is now (a new
+    // MIDI note while others are held), so there is no jump to zero.
+    void retrigger() { stage = attackStage; }
 
     void gate (bool on)
     {

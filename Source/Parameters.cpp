@@ -79,8 +79,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (percentParam (ParamIDs::fuzzMix, "Fuzz Mix", 1.0f));
 
     // Filter
-    layout.add (floatParam (ParamIDs::frequency, "Frequency", { 20.0f, 20000.0f, 0.01f, 0.25f }, 1000.0f, "Hz"));
-    layout.add (percentParam (ParamIDs::q, "Q", 0.3f, -1.0f));
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { ParamIDs::frequency, 1 }, "Frequency", NormalisableRange<float> { 20.0f, 20000.0f, 0.01f, 0.25f }, 1000.0f,
+        AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int)
+            { return v >= 1000.0f ? String (v / 1000.0f, v >= 10000.0f ? 1 : 2) + " kHz" : String (roundToInt (v)) + " Hz"; })));
+    layout.add (percentParam (ParamIDs::q, "Rez", 0.3f, -1.0f));
     layout.add (percentParam (ParamIDs::spaceL, "Space L", 0.0f));
     layout.add (percentParam (ParamIDs::spaceR, "Space R", 0.0f));
     layout.add (percentParam (ParamIDs::excite1, "Excite 1", 0.0f));
@@ -97,8 +100,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (levelParam (ParamIDs::levelNP, "Notch Pass Level", kLevelOffDb));
     layout.add (levelParam (ParamIDs::levelComb, "Comb Level", kLevelOffDb));
     layout.add (percentParam (ParamIDs::filterMix, "Filter Mix", 1.0f));
-    layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamIDs::outputMode, 1 }, "Output Mode",
-                                                        StringArray { "Mixed", "Separate" }, 0));
 
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::bypass, 1 }, "Bypass", false));
 
@@ -120,8 +121,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::lfo (n, "Division"), 1 }, name + "Division", divisions, 6));
         layout.add (floatParam (ModParamIds::lfo (n, "Phase"), name + "Phase", { 0.0f, 360.0f, 1.0f }, 0.0f, "deg"));
         layout.add (floatParam (ModParamIds::lfo (n, "Stereo"), name + "Stereo", { 0.0f, 180.0f, 1.0f }, 0.0f, "deg"));
-        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::lfo (n, "Retrigger"), 1 }, name + "Retrigger",
-                                                            StringArray { "Off", "Env 1", "Env 2" }, 0));
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::lfo (n, "Retrigger"), 1 }, name + "Restart",
+                                                            StringArray { "Off", "When Env 1 fires", "When Env 2 fires" }, 0));
     }
 
     // Envelopes, each triggered by its own envelope follower
@@ -132,10 +133,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (percentParam (ModParamIds::env (n, "Sensitivity"), name + "Sensitivity", 0.5f));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::env (n, "Source"), 1 }, name + "Source",
                                                             StringArray { "Pre input gain", "Post input gain", "Sidechain" }, 1));
+        // What fires the envelope: its follower crossing the threshold, any
+        // MIDI note-on, or the input audio itself crossing the threshold. Kept apart from the follower's own source so MIDI
+        // can fire the envelopes while the followers keep tracking audio.
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::env (n, "Trigger"), 1 }, name + "Trigger",
+                                                            StringArray { "Follower", "MIDI notes", "Audio" }, 0));
         layout.add (timeParam (ModParamIds::env (n, "Attack"), name + "Attack", 0.0001f, 10.0f, 0.005f));
         layout.add (timeParam (ModParamIds::env (n, "Decay"), name + "Decay", 0.001f, 10.0f, 0.2f));
         layout.add (percentParam (ModParamIds::env (n, "Sustain"), name + "Sustain", 0.7f));
         layout.add (timeParam (ModParamIds::env (n, "Release"), name + "Release", 0.001f, 20.0f, 0.3f));
+
+        // The follower that listens to the audio and fires this envelope.
+        const String fol = "Follower " + String (n) + " ";
+        layout.add (timeParam (ModParamIds::env (n, "FolAttack"), fol + "Attack", 0.0001f, 1.0f, 0.001f));
+        layout.add (std::make_unique<AudioParameterFloat> (ParameterID { ModParamIds::env (n, "FolHold"), 1 }, fol + "Hold",
+                                                           NormalisableRange<float> (0.0f, 2.0f, 0.0f, 0.4f), 0.0f,
+                                                           AudioParameterFloatAttributes().withStringFromValueFunction (
+                                                               [] (float v, int) { return v < 0.0005f ? String ("0 ms") : secondsText (v); })));
+        layout.add (timeParam (ModParamIds::env (n, "FolRelease"), fol + "Release", 0.005f, 5.0f, 0.08f));
     }
 
     // Mod grid: what the three Assign columns point at...

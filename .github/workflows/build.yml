@@ -48,15 +48,110 @@ jobs:
           ${{ matrix.pluginval_bin }} --strictness-level 5 --skip-gui-tests --validate-in-process \
             --validate "build/FuzzyFilter_artefacts/Release/VST3/Fuzzy Filter.vst3"
 
-      - name: Upload VST3
+      # Mac: sign each bundle with the Developer ID certificate, have Apple
+      # notarize them, staple the tickets, check the AU with Apple's
+      # validator the way Logic does, and zip each bundle with ditto so the
+      # download keeps its permissions and signature. Without the signing
+      # secrets (a fork, say) it falls back to an ad hoc signature.
+      - name: Sign, notarize, validate and package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          # Drop stray spaces or newlines that can sneak in when a secret is pasted.
+          APPLE_ID="$(printf '%s' "${APPLE_ID:-}" | tr -d '[:space:]')"
+          APPLE_APP_PASSWORD="$(printf '%s' "${APPLE_APP_PASSWORD:-}" | tr -d '[:space:]')"
+          APPLE_TEAM_ID="$(printf '%s' "${APPLE_TEAM_ID:-}" | tr -d '[:space:]')"
+          # Shape checks only: these never print the values themselves.
+          if [ -n "${MACOS_CERT_P12:-}" ]; then
+            [[ "$APPLE_ID" == *@*.* ]] || echo "::warning::APPLE_ID does not look like an email address"
+            if ! [[ "$APPLE_APP_PASSWORD" =~ ^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$ ]]; then
+              p="$APPLE_APP_PASSWORD"
+              echo "::warning::APPLE_APP_PASSWORD is not in the xxxx-xxxx-xxxx-xxxx form (length ${#p}, dashes $(printf '%s' "$p" | tr -cd '-' | wc -c | tr -d ' '), uppercase $([[ "$p" =~ [A-Z] ]] && echo yes || echo no), digits $([[ "$p" =~ [0-9] ]] && echo yes || echo no), other symbols $([[ "$p" =~ [^A-Za-z0-9-] ]] && echo yes || echo no))"
+            fi
+            [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || echo "::warning::APPLE_TEAM_ID is not a 10-character team ID"
+          fi
+          out=build/FuzzyFilter_artefacts/Release
+          bundles=("$out/AU/Fuzzy Filter.component" "$out/VST3/Fuzzy Filter.vst3" "$out/AAX/Fuzzy Filter.aaxplugin")
+
+          if [ -n "${MACOS_CERT_P12:-}" ]; then
+            keychain="$RUNNER_TEMP/signing.keychain-db"
+            kcpass="$(uuidgen)"
+            echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security create-keychain -p "$kcpass" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$kcpass" "$keychain"
+            security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpass" "$keychain" > /dev/null
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            rm "$RUNNER_TEMP/cert.p12"
+            identity="$(security find-identity -v -p codesigning "$keychain" | grep 'Developer ID Application' | head -1 | awk '{print $2}')"
+            if [ -z "$identity" ]; then echo "No Developer ID Application identity in MACOS_CERT_P12"; exit 1; fi
+
+            for b in "${bundles[@]}"; do
+              codesign --force --deep --options runtime --timestamp --sign "$identity" "$b"
+              codesign --verify --strict --verbose=2 "$b"
+            done
+
+            # One submission for all three plugins: Apple's queue time is per submission,
+            # and the first ones for a new account can take an hour or more.
+            mkdir -p notarize/bundles
+            for b in "${bundles[@]}"; do ditto "$b" "notarize/bundles/$(basename "$b")"; done
+            ditto -c -k notarize/bundles notarize/FuzzyFilter.zip
+            xcrun notarytool submit notarize/FuzzyFilter.zip --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" --wait --timeout 3h --output-format json | tee notarize/result.json || true
+            if ! grep -q '"status" *: *"Accepted"' notarize/result.json; then
+              echo "Notarization did not finish as Accepted"
+              id=$(sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p' notarize/result.json | head -1)
+              [ -n "$id" ] && xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" || true
+              exit 1
+            fi
+            for b in "${bundles[@]}"; do
+              xcrun stapler staple "$b"
+              xcrun stapler validate "$b"
+            done
+            spctl --assess --type install --verbose=2 "${bundles[0]}" || true
+            suffix=""
+          else
+            echo "::warning::Signing secrets not available, so the Mac build is signed ad hoc only."
+            for b in "${bundles[@]}"; do codesign --force --deep --sign - "$b"; done
+            suffix=" (unsigned)"
+          fi
+
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "${bundles[0]}" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aumf Fzf1 Fzfl
+
+          mkdir -p package
+          ditto -c -k --keepParent "${bundles[0]}" "package/Fuzzy Filter AU${suffix}.zip"
+          ditto -c -k --keepParent "${bundles[1]}" "package/Fuzzy Filter VST3${suffix}.zip"
+          # AAX also needs PACE signing before retail Pro Tools will load it.
+          ditto -c -k --keepParent "${bundles[2]}" "package/Fuzzy Filter AAX (needs PACE signing).zip"
+
+      - name: Upload VST3 (Windows)
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: FuzzyFilter-${{ matrix.name }}-VST3
+          name: FuzzyFilter-Windows-VST3
           path: build/FuzzyFilter_artefacts/Release/VST3/
 
-      - name: Upload AU
+      - name: Upload AAX (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FuzzyFilter-Windows-AAX-unsigned
+          path: build/FuzzyFilter_artefacts/Release/AAX/
+
+      - name: Upload AU, VST3 and AAX (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: FuzzyFilter-macOS-AU
-          path: build/FuzzyFilter_artefacts/Release/AU/
+          name: FuzzyFilter-macOS
+          path: package/
