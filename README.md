@@ -28,6 +28,40 @@ bottom of the page:
   These builds are not signed yet, so macOS may block them until signing is
   set up in step 4.
 
+## iPad version
+
+The iPad build is an AUv3 plugin inside a small Fuzzy Filter app, built by
+the **iPad** workflow on GitHub's Mac runners. Install the app from TestFlight,
+open it once, and Fuzzy Filter appears as an Audio Unit effect in AUM,
+Logic Pro for iPad, Cubasis, GarageBand and other AUv3 hosts. The app on its
+own runs the effect on the iPad's microphone or audio interface input.
+
+Differences from the desktop plugin:
+
+- **No separate outputs.** Few iPad hosts route extra AUv3 outputs, so the
+  iPad plugin has only the main stereo output.
+- **Sidechain is off until the host turns it on.** Hosts that support AUv3
+  sidechains (AUM does) can feed it; elsewhere Excite and the followers use
+  the main input.
+- **Touch mod grid.** Tapping the mod grid opens it full size; tap a crossing
+  and drag up or down to set it, double-tap to clear, DONE to close.
+- The plugin view fits whatever size the host gives it.
+
+**Signing and TestFlight.** Every run checks that the iPad build compiles.
+With these repository secrets, a push also signs the app with Apple's
+cloud-managed certificate and uploads it to TestFlight; no certificate or
+provisioning profile has to be made by hand:
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_TEAM_ID` | The 10-character team ID (shared with the Mac build) |
+| `ASC_KEY_ID` | App Store Connect API key ID (Admin access) |
+| `ASC_ISSUER_ID` | The issuer ID shown above the API keys list |
+| `ASC_KEY_P8` | The whole contents of the downloaded `AuthKey_XXXXXXXXXX.p8` file |
+
+The App Store Connect app record must exist for bundle ID
+`com.fuzzyfilter.fuzzyfilter` before the first upload.
+
 ## Building on Windows
 
 1. Install [Visual Studio 2022](https://visualstudio.microsoft.com/) with the

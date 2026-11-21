@@ -165,7 +165,9 @@ void PresetBar::showMenu()
     menu.addItem (saveId, "Save as...");
     const bool canDelete = current >= 0 && ! presets.getEntry (current).factory;
     menu.addItem (deleteId, "Delete \"" + presets.getCurrentName() + "\"", canDelete);
+   #if ! JUCE_IOS // no file browser to show it in on iPad
     menu.addItem (folderId, "Show preset folder");
+   #endif
 
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
                         [safe = juce::Component::SafePointer<PresetBar> (this), current] (int result)
@@ -196,6 +198,14 @@ void PresetBar::askToSave()
     w->addTextEditor ("name", shownFactory ? juce::String() : shownName, "Name");
     w->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
     w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+   #if JUCE_IOS
+    // Same as menus: show the dialog inside the plugin's view.
+    if (auto* top = getTopLevelComponent())
+    {
+        top->addAndMakeVisible (w);
+        w->setCentrePosition (top->getLocalBounds().getCentre());
+    }
+   #endif
     w->enterModalState (true, juce::ModalCallbackFunction::create (
                                   [safe = juce::Component::SafePointer<PresetBar> (this), w] (int result)
                                   {
@@ -209,6 +219,52 @@ void PresetBar::askToSave()
                                       safe->refresh();
                                   }),
                         true);
+}
+
+// ================================================================ GridZoom
+
+GridZoom::GridZoom (FuzzyFilterProcessor& p) : grid (p)
+{
+    addAndMakeVisible (grid);
+    grid.setBounds (0, 0, gridWidth, gridHeight);
+    grid.dragPixelsPerUnit = 60.0f; // the grid is drawn about 2.5 times larger here
+    addAndMakeVisible (done);
+    done.onClick = [this] { setVisible (false); };
+}
+
+juce::Rectangle<int> GridZoom::cardArea() const
+{
+    return getLocalBounds().reduced (24);
+}
+
+void GridZoom::paint (juce::Graphics& g)
+{
+    g.fillAll (colours::ink.withAlpha (0.8f));
+    const auto card = cardArea().toFloat();
+    // A slightly skewed cream sheet, like the panels.
+    juce::Path sheet;
+    sheet.startNewSubPath (card.getX(), card.getY() + 4.0f);
+    sheet.lineTo (card.getRight(), card.getY());
+    sheet.lineTo (card.getRight() - 3.0f, card.getBottom());
+    sheet.lineTo (card.getX() + 2.0f, card.getBottom() - 5.0f);
+    sheet.closeSubPath();
+    g.setColour (colours::cream);
+    g.fillPath (sheet);
+}
+
+void GridZoom::resized()
+{
+    auto card = cardArea().reduced (20, 14);
+    done.setBounds (card.removeFromTop (48).removeFromRight (120).reduced (0, 4));
+    card.removeFromTop (6);
+    const float scale = std::min ((float) card.getWidth() / (float) gridWidth, (float) card.getHeight() / (float) gridHeight);
+    const float x = (float) card.getCentreX() - (float) gridWidth * scale * 0.5f;
+    grid.setTransform (juce::AffineTransform::scale (scale).translated (x, (float) card.getY()));
+}
+
+void GridZoom::mouseDown (const juce::MouseEvent&)
+{
+    setVisible (false); // a tap outside the grid
 }
 
 // ================================================================ Editor
@@ -257,11 +313,22 @@ FuzzyFilterEditor::FuzzyFilterEditor (FuzzyFilterProcessor& p) : juce::AudioProc
     showLfo (0);
     showEnv (0);
 
+    // Tapping the small grid on a touch screen opens the big one.
+    gridZoom = &add<GridZoom> (rect (0, 0, designWidth, designHeight), proc);
+    gridZoom->setVisible (false);
+    modGrid->onTouchTap = [this] { gridZoom->setVisible (true); gridZoom->toFront (false); };
+
+   #if JUCE_IOS
+    // On iPad the host decides the size of the plugin's view, which can have
+    // any shape; resized() fits the layout inside it.
+    setSize (designWidth, designHeight);
+   #else
     const double scale = juce::jlimit (0.65, 1.5, (double) proc.apvts.state.getProperty (uiScaleProp, 1.0));
     setResizable (true, true);
     setResizeLimits (650, 423, 1500, 975);
     getConstrainer()->setFixedAspectRatio ((double) designWidth / (double) designHeight);
     setSize (juce::roundToInt (designWidth * scale), juce::roundToInt (designHeight * scale));
+   #endif
 
     timerCallback();
     startTimerHz (30);
@@ -281,9 +348,18 @@ void FuzzyFilterEditor::paint (juce::Graphics& g)
 
 void FuzzyFilterEditor::resized()
 {
+   #if JUCE_IOS
+    // Fit the whole layout inside whatever shape the host gives us and
+    // centre it; the cream background fills the rest.
+    const float scale = std::min ((float) getWidth() / (float) designWidth, (float) getHeight() / (float) designHeight);
+    const float x = ((float) getWidth() - (float) designWidth * scale) * 0.5f;
+    const float y = ((float) getHeight() - (float) designHeight * scale) * 0.5f;
+    content.setTransform (juce::AffineTransform::scale (scale).translated (x, y));
+   #else
     const float scale = (float) getWidth() / (float) designWidth;
     content.setTransform (juce::AffineTransform::scale (scale));
     proc.apvts.state.setProperty (uiScaleProp, scale, nullptr);
+   #endif
 }
 
 void FuzzyFilterEditor::buildHeader()
@@ -583,4 +659,6 @@ void FuzzyFilterEditor::timerCallback()
     envDisplay->refresh();
     inputMeter->refresh();
     modGrid->refresh();
+    if (gridZoom != nullptr && gridZoom->isVisible())
+        gridZoom->refresh();
 }

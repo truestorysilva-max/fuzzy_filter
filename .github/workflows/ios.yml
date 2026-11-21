@@ -1,0 +1,121 @@
+name: iPad
+
+# Builds the iPad version: an AUv3 plugin inside a small standalone app.
+# Every run checks that it compiles. When the App Store Connect API key is in
+# the repository's secrets, a push also signs the app and uploads it to
+# TestFlight, where it shows up on the iPad a few minutes later.
+#
+# Secrets used for signing and upload (see "iPad version" in README.md):
+#   APPLE_TEAM_ID   10-character team ID (shared with the Mac build)
+#   ASC_KEY_ID      App Store Connect API key ID
+#   ASC_ISSUER_ID   App Store Connect issuer ID
+#   ASC_KEY_P8      contents of the AuthKey_XXXXXXXXXX.p8 file
+
+on:
+  push:
+    branches: [main, claude/project-thread-xrh872]
+  workflow_dispatch:
+
+jobs:
+  ipad:
+    name: iPad (AUv3)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Check for signing secrets
+        id: secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            echo "sign=true" >> "$GITHUB_OUTPUT"
+            echo "team=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+          else
+            echo "sign=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::App Store Connect API key not in the secrets yet, so this run only checks that the iPad build compiles."
+          fi
+
+      - name: Configure
+        run: |
+          cmake -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_XCODE_GENERATE_SCHEME=ON \
+            -DFF_BUILD_NUMBER=${{ github.run_number }} \
+            -DFF_IOS_TEAM_ID="${{ steps.secrets.outputs.team }}"
+
+      # The archive is built without signing: the export step below signs it
+      # with Apple's cloud-managed distribution certificate, so no certificate
+      # or provisioning profile has to be made by hand or kept in the secrets.
+      - name: Build and archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project build-ios/FuzzyFilter.xcodeproj \
+            -scheme FuzzyFilter_Standalone \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath "$RUNNER_TEMP/FuzzyFilter.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error|warning: unused|ARCHIVE|BUILD" || true
+          apps="$RUNNER_TEMP/FuzzyFilter.xcarchive/Products/Applications"
+          if ! ls "$apps"/*.app/PlugIns/*.appex > /dev/null 2>&1; then
+            echo "Archive is missing the app or its AUv3 extension"
+            ls -R "$RUNNER_TEMP/FuzzyFilter.xcarchive" 2>/dev/null | head -50 || true
+            tail -200 "$RUNNER_TEMP/build.log"
+            exit 1
+          fi
+          echo "App and AUv3 extension built:"
+          ls -d "$apps"/*.app "$apps"/*.app/PlugIns/*.appex
+
+      - name: Sign and upload to TestFlight
+        if: steps.secrets.outputs.sign == 'true' && github.event_name != 'pull_request'
+        env:
+          TEAM_ID: ${{ steps.secrets.outputs.team }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          ASC_KEY_ID="$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')"
+          ASC_ISSUER_ID="$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')"
+          # Shape checks only: these never print the values.
+          [[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || echo "::warning::ASC_KEY_ID is not a 10-character key ID"
+          [[ "$ASC_ISSUER_ID" =~ ^[0-9a-f-]{36}$ ]] || echo "::warning::ASC_ISSUER_ID does not look like an issuer ID (a 36-character UUID)"
+          grep -q "BEGIN PRIVATE KEY" <<< "$ASC_KEY_P8" || echo "::warning::ASC_KEY_P8 does not contain a BEGIN PRIVATE KEY line; paste the whole .p8 file"
+
+          key="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$key"
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/FuzzyFilter.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$key" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          rm -f "$key"
+          echo "::notice::Build ${{ github.run_number }} uploaded. It appears in TestFlight once Apple finishes processing it (usually 5 to 30 minutes)."

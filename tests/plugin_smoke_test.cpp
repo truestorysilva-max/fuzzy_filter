@@ -361,13 +361,41 @@ int main()
         editor->setSize (800, 520);
         check (editor->getWidth() == 800, "editor: resizes", editor->getWidth());
 
-        if (auto path = juce::SystemStats::getEnvironmentVariable ("FF_SNAPSHOT", {}); path.isNotEmpty())
+        // The touch-size mod grid opens over the editor and draws.
+        // FF_SNAPSHOT_ZOOM=<file.png> saves a picture of it.
+        ui::GridZoom* zoom = nullptr;
+        std::function<void (juce::Component&)> find = [&] (juce::Component& c)
         {
-            juce::File file (path);
-            file.deleteFile();
-            juce::FileOutputStream out (file);
-            juce::PNGImageFormat().writeImageToStream (image, out);
+            for (auto* child : c.getChildren())
+            {
+                if (auto* z = dynamic_cast<ui::GridZoom*> (child)) zoom = z;
+                else find (*child);
+            }
+        };
+        find (*editor);
+        check (zoom != nullptr && ! zoom->isVisible(), "editor: big mod grid exists and starts hidden");
+        juce::Image zoomImage;
+        if (zoom != nullptr)
+        {
+            zoom->setVisible (true);
+            juce::Timer::callPendingTimersSynchronously();
+            zoomImage = editor->createComponentSnapshot (editor->getLocalBounds(), true, 2.0f);
+            check (zoomImage.isValid(), "editor: big mod grid draws");
+            zoom->setVisible (false);
         }
+
+        auto save = [] (const char* var, const juce::Image& img)
+        {
+            if (auto path = juce::SystemStats::getEnvironmentVariable (var, {}); path.isNotEmpty() && img.isValid())
+            {
+                juce::File file (path);
+                file.deleteFile();
+                juce::FileOutputStream out (file);
+                juce::PNGImageFormat().writeImageToStream (img, out);
+            }
+        };
+        save ("FF_SNAPSHOT", image);
+        save ("FF_SNAPSHOT_ZOOM", zoomImage);
     }
 
     std::printf ("\n%s: %d failed\n", failures == 0 ? "ALL PASSED" : "FAILURES", failures);

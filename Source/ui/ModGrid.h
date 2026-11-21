@@ -9,6 +9,10 @@ namespace ui
 // select it and drag up or down to set its amount; double-click clears it.
 // Red dots are positive amounts, black bars negative. Click an Assign column's
 // header (A1 to A3) to choose what it controls.
+//
+// On a touch screen the cells are too small for a finger, so when onTouchTap
+// is set a tap only calls it (the editor then opens a full size copy of the
+// grid, which works with touch as described above: tap, drag, double-tap).
 class ModGrid : public juce::Component, public juce::TooltipClient
 {
 public:
@@ -23,6 +27,9 @@ public:
     void mouseDoubleClick (const juce::MouseEvent& e) override;
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
     juce::String getTooltip() override;
+
+    std::function<void()> onTouchTap;
+    float dragPixelsPerUnit = 150.0f; // drag distance for a change of 1 (100%)
 
 private:
     struct Cell { int row = -1, col = -1; };

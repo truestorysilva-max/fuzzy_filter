@@ -17,6 +17,18 @@ public:
     juce::Font getAlertWindowMessageFont() override { return fonts::label (14.0f, false); }
     juce::Font getAlertWindowFont() override { return fonts::label (14.0f, false); }
     juce::Font getTextButtonFont (juce::TextButton&, int) override { return fonts::label (14.0f, true, 1.0f); }
+
+    // In an iPad plugin there is no desktop to open a separate menu window
+    // on, so menus open inside the plugin's own view.
+    juce::Component* getParentComponentForMenuOptions (const juce::PopupMenu::Options& options) override
+    {
+       #if JUCE_IOS
+        if (options.getParentComponent() == nullptr)
+            if (auto* target = options.getTargetComponent())
+                return target->getTopLevelComponent();
+       #endif
+        return juce::LookAndFeel_V4::getParentComponentForMenuOptions (options);
+    }
 };
 
 // The preset strip: previous and next arrows around the preset name, which
@@ -36,6 +48,25 @@ private:
     PresetManager& presets;
     juce::String shownName;
     bool shownFactory = true;
+};
+// The mod grid blown up to fill the editor, for fingers. Opened by tapping
+// the grid on a touch screen; DONE or a tap outside the grid closes it.
+class GridZoom : public juce::Component
+{
+public:
+    explicit GridZoom (FuzzyFilterProcessor& p);
+    void paint (juce::Graphics& g) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void refresh() { grid.refresh(); }
+
+    static constexpr int gridWidth = 360, gridHeight = 212; // the grid's own layout size
+
+private:
+    juce::Rectangle<int> cardArea() const;
+
+    ModGrid grid;
+    juce::TextButton done { "DONE" };
 };
 } // namespace ui
 
@@ -90,6 +121,7 @@ private:
     ui::EnvDisplay* envDisplay = nullptr;
     ui::InputMeter* inputMeter = nullptr;
     ui::ModGrid* modGrid = nullptr;
+    ui::GridZoom* gridZoom = nullptr;
     ui::Segments* lfoTabs = nullptr;
     ui::Segments* envTabs = nullptr;
     ui::Segments* envView = nullptr; // ADSR or Follower

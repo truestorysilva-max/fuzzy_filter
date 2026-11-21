@@ -188,6 +188,11 @@ void ModGrid::setAmount (int row, int col, float amount)
 
 void ModGrid::mouseDown (const juce::MouseEvent& e)
 {
+    if (onTouchTap != nullptr && e.source.isTouch())
+    {
+        onTouchTap();
+        return;
+    }
     if (const int a = assignHeaderAt (e.getPosition()); a >= 0)
     {
         selected.col = Mod::numFixedDestinations + a;
@@ -210,7 +215,7 @@ void ModGrid::mouseDrag (const juce::MouseEvent& e)
 {
     if (! dragging)
         return;
-    const float sensitivity = e.mods.isShiftDown() ? 600.0f : 150.0f;
+    const float sensitivity = dragPixelsPerUnit * (e.mods.isShiftDown() ? 4.0f : 1.0f);
     float v = dragStart - (float) e.getDistanceFromDragStartY() / sensitivity;
     if (std::abs (v) < 0.02f)
         v = 0.0f; // a little detent at zero
