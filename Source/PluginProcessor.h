@@ -118,6 +118,7 @@ private:
     std::atomic<float>* pFolHold[2] {};
     std::atomic<float>* pFolRelease[2] {};
     std::atomic<float>* pEnvSource[2] {};
+    std::atomic<float>* pEnvTrigger[2] {};
     std::atomic<float>* pAssignTarget[Mod::numAssigns] {};
     std::atomic<float>* pAmounts[Mod::numSources][Mod::numDestinations] {};
 
