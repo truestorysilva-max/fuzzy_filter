@@ -71,6 +71,15 @@ if(FF_BUILD_PLUGIN)
 
     target_include_directories(FuzzyFilter PRIVATE Source)
 
+    # The short commit shown in the plugin window, so a test build can be
+    # matched to the code it came from.
+    execute_process(COMMAND git rev-parse --short HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    OUTPUT_VARIABLE FF_BUILD_ID OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(NOT FF_BUILD_ID)
+        set(FF_BUILD_ID "local")
+    endif()
+    target_compile_definitions(FuzzyFilter PRIVATE FF_BUILD_ID="${PROJECT_VERSION}-${FF_BUILD_ID}")
+
     target_compile_definitions(FuzzyFilter PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0

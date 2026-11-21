@@ -135,6 +135,8 @@ void FuzzyFilterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 
     for (auto& l : lfos) l.prepare (sampleRate);
     for (auto& f : followers) f.prepare (sampleRate);
+    for (auto& d : audioDetectors) { d.prepare (sampleRate); d.setTimes (0.0002f, 0.0f, 0.05f); }
+    for (auto& g : audioGates) g.reset();
     for (auto& g : gates) g.reset();
     noteHeld.fill (false);
     numNotesHeld = 0;
@@ -204,6 +206,7 @@ bool FuzzyFilterProcessor::handleMidi (const juce::MidiMessage& m)
     {
         auto& held = noteHeld[(size_t) ((m.getChannel() - 1) * 128 + m.getNoteNumber())];
         if (! held) { held = true; ++numNotesHeld; }
+        midiNoteOns.fetch_add (1);
         return true;
     }
     if (m.isNoteOff())
@@ -261,11 +264,15 @@ void FuzzyFilterProcessor::runModulation (int n, const juce::MidiBuffer& midi)
     const float* detL[2];
     const float* detR[2];
     float detGain[2], sensGain[2];
-    bool midiGated[2];
+    bool midiGated[2], audioGated[2];
+    const float* inL = work.getReadPointer (0);
+    const float* inR = work.getReadPointer (1);
     for (int e = 0; e < 2; ++e)
     {
         const int src = (int) pEnvSource[e]->load();
-        midiGated[e] = (int) pEnvTrigger[e]->load() == Choices::triggerMidi;
+        const int trig = (int) pEnvTrigger[e]->load();
+        midiGated[e] = trig == Choices::triggerMidi;
+        audioGated[e] = trig == Choices::triggerAudio;
         const auto& buf = src == Choices::followerSidechain ? sidechain : work;
         detL[e] = buf.getReadPointer (0);
         detR[e] = buf.getReadPointer (1);
@@ -331,6 +338,14 @@ void FuzzyFilterProcessor::runModulation (int n, const juce::MidiBuffer& midi)
                 // so every note-on is heard as a hit.
                 const bool inAttack = envelopes[e].getStage() == ff::Adsr::attackStage;
                 envelopes[e].gate (numNotesHeld > 0 || inAttack);
+            }
+            else if (audioGated[e])
+            {
+                // The input audio itself (after the gain) against the threshold.
+                const float in = std::max (std::abs (inL[i]), std::abs (inR[i])) * postGain;
+                const float audioLevel = audioDetectors[e].process (in) * sensGain[e];
+                opened[e] = audioGates[e].update (audioLevel, thresholdDb);
+                envelopes[e].gate (audioGates[e].isOpen());
             }
             else
             {

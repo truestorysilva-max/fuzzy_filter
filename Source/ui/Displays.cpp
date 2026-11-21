@@ -305,13 +305,18 @@ void EnvDisplay::paint (juce::Graphics& g)
     g.setColour (colours::ink);
     g.fillPath (shape);
 
-    // Follower threshold: 0 dB at the top, -60 dB at the bottom.
-    const float thr = plainOf (proc, ModParamIds::env (env + 1, "Threshold"));
-    const float ty = juce::jlimit (1.0f, h - 3.0f, h * (-thr / 60.0f));
+    // Threshold: 0 dB at the top, -60 dB at the bottom. Hidden on the ADSR
+    // page when MIDI notes fire the envelope, since it plays no part there.
+    const bool midiFired = (int) plainOf (proc, ModParamIds::env (env + 1, "Trigger")) == Choices::triggerMidi;
     g.setColour (colours::cream);
-    g.fillRect (juce::Rectangle<float> (0.0f, ty, w, 2.0f));
-    g.setFont (fonts::label (9.0f, true, 1.0f));
-    g.drawText ("THRESH", juce::Rectangle<float> (w - 52.0f, ty - 13.0f, 50.0f, 11.0f), juce::Justification::centredRight, false);
+    if (followerView || ! midiFired)
+    {
+        const float thr = plainOf (proc, ModParamIds::env (env + 1, "Threshold"));
+        const float ty = juce::jlimit (1.0f, h - 3.0f, h * (-thr / 60.0f));
+        g.fillRect (juce::Rectangle<float> (0.0f, ty, w, 2.0f));
+        g.setFont (fonts::label (9.0f, true, 1.0f));
+        g.drawText ("THRESH", juce::Rectangle<float> (w - 52.0f, ty - 13.0f, 50.0f, 11.0f), juce::Justification::centredRight, false);
+    }
 
     // Live: the follower level as a tick on the right, the envelope as a bar on the left.
     const float fol = proc.getSourceValue (Mod::follower1 + env);
@@ -322,7 +327,28 @@ void EnvDisplay::paint (juce::Graphics& g)
     g.fillPath (tick);
     const float ev = juce::jlimit (0.0f, 1.0f, proc.getSourceValue (Mod::env1 + env));
     g.setColour (colours::cream);
-    g.fillRect (juce::Rectangle<float> (0.0f, h * (1.0f - ev), 4.0f, h * ev));
+    g.fillRect (juce::Rectangle<float> (0.0f, h * (1.0f - ev), 8.0f, h * ev));
+
+    // MIDI lamp: when MIDI notes fire this envelope, it flashes on every
+    // note-on that reaches the plugin, and says so if none have arrived.
+    if (midiFired && ! followerView)
+    {
+        const bool any = proc.getMidiNoteOns() > 0;
+        const auto lamp = juce::Rectangle<float> (12.0f, 4.0f, any ? 44.0f : 70.0f, 14.0f);
+        g.setColour (flashFrames > 0 ? colours::red : colours::cream);
+        g.fillRect (lamp);
+        g.setColour (flashFrames > 0 ? colours::cream : colours::ink);
+        g.setFont (fonts::label (9.0f, true, 1.0f));
+        g.drawText (any ? "MIDI" : "NO MIDI YET", lamp, juce::Justification::centred, false);
+    }
+}
+
+void EnvDisplay::refresh()
+{
+    const int n = proc.getMidiNoteOns();
+    if (n != lastNoteOns) { lastNoteOns = n; flashFrames = 4; }
+    else if (flashFrames > 0) --flashFrames;
+    repaint();
 }
 
 // ---------------------------------------------------------------- InputMeter
