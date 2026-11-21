@@ -373,6 +373,12 @@ void FuzzyFilterEditor::buildHeader()
     pos.attachTo (*s.getParameter (ParamIDs::fuzzPosition));
 
     add<BypassButton> (rect (934, 17, 52, 52), s, ParamIDs::bypass);
+
+   #ifndef FF_BUILD_ID
+    #define FF_BUILD_ID "local"
+   #endif
+    add<SmallLabel> (rect (798, 64, 120, 10), juce::String ("build ") + FF_BUILD_ID,
+                     colours::ink, 8.0f, juce::Justification::centred);
 }
 
 void FuzzyFilterEditor::buildSoundRow()
@@ -529,7 +535,7 @@ void FuzzyFilterEditor::buildModRow()
             }
             auto& source = add<ChoiceMenuButton> (rect (px, top + 186, 190, 22), s, ModParamIds::env (e + 1, "Trigger"),
                                                   "FIRED BY", colours::ink, colours::cream);
-            source.setShortNames ({ "Follower", "MIDI notes" });
+            source.setShortNames ({ "Follower", "MIDI notes", "Audio" });
             list.push_back (&source);
 
             // The follower view: how the follower rises, holds and falls,

@@ -58,6 +58,9 @@ public:
     double getLfoPhase (int lfo) const { return lfoPhase[lfo & 3].load(); }
     // Counts the restarts of an LFO, so the display can flash on each one.
     int getLfoRestarts (int lfo) const { return lfoRestarts[lfo & 3].load(); }
+    // Counts every MIDI note-on that reaches the plugin, so the UI can show
+    // whether the host is sending notes at all.
+    int getMidiNoteOns() const { return midiNoteOns.load(); }
 
     PresetManager presets { apvts };
 
@@ -133,10 +136,15 @@ private:
     ff::Lfo lfos[4];
     ff::EnvelopeFollower followers[2];
     ff::FollowerGate gates[2];
+    // Fast level detectors for Fired by = Audio: the input after the gain,
+    // with fixed quick times, so hits fire the envelope straight away.
+    ff::EnvelopeFollower audioDetectors[2];
+    ff::FollowerGate audioGates[2];
     ff::Adsr envelopes[2];
     float prevSourceL[Mod::numSources] {}, prevSourceR[Mod::numSources] {};
     std::array<bool, 16 * 128> noteHeld {}; // channel * 128 + note
     int numNotesHeld = 0;
+    std::atomic<int> midiNoteOns { 0 };
     std::array<std::atomic<float>, Mod::numSources> sourceValues {};
     std::array<std::atomic<float>, Mod::numSlots> slotLive {};
     std::atomic<float> inputPeak[2] {};

@@ -53,7 +53,7 @@ enum ExciteSource { inputAudio = 0, sidechain = 1, gridOnly = 2 };
 enum LfoSync { free = 0, tempo = 1 };
 enum LfoRetrigger { retriggerOff = 0, retriggerEnv1 = 1, retriggerEnv2 = 2 };
 enum FollowerSource { preInputGain = 0, postInputGain = 1, followerSidechain = 2 };
-enum EnvTrigger { triggerFollower = 0, triggerMidi = 1 };
+enum EnvTrigger { triggerFollower = 0, triggerMidi = 1, triggerAudio = 2 };
 
 // Tempo sync divisions and their length in quarter notes (4/4 assumed).
 inline constexpr int numDivisions = 16;

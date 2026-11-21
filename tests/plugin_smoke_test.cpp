@@ -438,9 +438,27 @@ int main()
         blip.addEvent (juce::MidiMessage::noteOff (1, 62), 441);
         const float blipPeak = block (blip);
         check (blipPeak > 0.5f, "midi: a one-sample note still fires a full attack", blipPeak);
+        check (p.getMidiNoteOns() == 2, "midi: the UI sees each note-on", p.getMidiNoteOns());
 
         // The follower keeps tracking the audio while MIDI fires the envelope.
         check (p.getSourceValue (Mod::follower2) > 0.05f, "midi: Follower 2 still tracks audio", p.getSourceValue (Mod::follower2));
+    }
+
+    // Fired by Audio: the input crossing the threshold fires Env 1 even
+    // when its follower listens to a silent sidechain.
+    {
+        FuzzyFilterProcessor p;
+        setParam (p, ModParamIds::env (1, "Trigger"), (float) Choices::triggerAudio);
+        setParam (p, ModParamIds::env (1, "Source"), (float) Choices::followerSidechain);
+        setParam (p, ModParamIds::env (1, "Threshold"), -30.0f);
+        setParam (p, ModParamIds::env (1, "Attack"), 0.001f);
+        setParam (p, ModParamIds::env (1, "Sustain"), 0.8f);
+        p.prepareToPlay (48000.0, 512);
+        p.getBus (true, 1)->enable (false);
+        bool finite = false;
+        float peak = 0.0f;
+        for (int b = 0; b < 20; ++b) { run (p, 1, finite); peak = std::max (peak, p.getSourceValue (Mod::env1)); }
+        check (peak > 0.5f, "trigger: Audio fires Env 1 from the input", peak);
     }
 
     std::printf ("\n%s: %d failed\n", failures == 0 ? "ALL PASSED" : "FAILURES", failures);

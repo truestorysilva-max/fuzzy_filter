@@ -133,11 +133,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (percentParam (ModParamIds::env (n, "Sensitivity"), name + "Sensitivity", 0.5f));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::env (n, "Source"), 1 }, name + "Source",
                                                             StringArray { "Pre input gain", "Post input gain", "Sidechain" }, 1));
-        // What fires the envelope: its follower crossing the threshold, or
-        // any MIDI note-on. Kept apart from the follower's own source so MIDI
+        // What fires the envelope: its follower crossing the threshold, any
+        // MIDI note-on, or the input audio itself crossing the threshold. Kept apart from the follower's own source so MIDI
         // can fire the envelopes while the followers keep tracking audio.
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ModParamIds::env (n, "Trigger"), 1 }, name + "Trigger",
-                                                            StringArray { "Follower", "MIDI notes" }, 0));
+                                                            StringArray { "Follower", "MIDI notes", "Audio" }, 0));
         layout.add (timeParam (ModParamIds::env (n, "Attack"), name + "Attack", 0.0001f, 10.0f, 0.005f));
         layout.add (timeParam (ModParamIds::env (n, "Decay"), name + "Decay", 0.001f, 10.0f, 0.2f));
         layout.add (percentParam (ModParamIds::env (n, "Sustain"), name + "Sustain", 0.7f));
