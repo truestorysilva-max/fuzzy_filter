@@ -19,7 +19,8 @@ on:
 jobs:
   ipad:
     name: iPad (AUv3)
-    runs-on: macos-15
+    # Apple only accepts uploads built with the iOS 26 SDK or later (Xcode 26).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -64,6 +65,7 @@ jobs:
             -destination generic/platform=iOS \
             -archivePath "$RUNNER_TEMP/FuzzyFilter.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf-with-dsym \
             | tee "$RUNNER_TEMP/build.log" | grep -E "error|warning: unused|ARCHIVE|BUILD" || true
           apps="$RUNNER_TEMP/FuzzyFilter.xcarchive/Products/Applications"
           if ! ls "$apps"/*.app/PlugIns/*.appex > /dev/null 2>&1; then
